@@ -30,15 +30,15 @@ acme-people-management/
 ├── backend/        Spring Boot, Gradle
 ├── frontend/       Angular
 ├── docs/           requirements, design, architecture/adr, ai-usage, tradeoffs
-├── build.gradle    root: builds the UI and bundles it into the API jar
+├── compose.yaml    local run: Postgres, API, web
 └── README.md
 ```
 
-Gradle builds Angular and copies `dist` into Spring's static resources, so the API serves the UI as one deployable unit.
+The frontend is a separate app from the API. Locally, a small nginx container serves the built Angular files and forwards `/api` to Spring Boot, so the browser sees one origin and no CORS setup is needed. During development, `ng serve` proxies `/api` to the API.
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Monorepo (chosen)** | One commit history. One clone and one README. One deployable jar. API and UI change together in one commit. | Gradle and npm toolchains mix. |
+| **Monorepo (chosen)** | One commit history. One clone and one README. API and UI change together in one commit. | Gradle and npm toolchains mix. |
 | Two repos | Independent release cycles. | Split history. Two deploys and CORS to configure. No benefit for one developer and one team. |
 | Monorepo with tooling (Nx, Turborepo) | Caching, affected-only builds. | Overbuilding for two modules. |
 
@@ -93,7 +93,7 @@ Standalone components, lazy-loaded routes, and signals for state. No NgRx: plain
 - **Cost:** microservices add network calls, service-to-service auth, per-service deployment, distributed transactions, and eventual consistency.
 - **Salary history:** it needs a transaction and a database constraint. Splitting it from employee data would make that consistency hard.
 - **Insights:** they are SQL joins and group-bys. These are cheap in one database and expensive across services.
-- **Deployment:** the requirement is one deployable unit.
+- **Deployment:** the API is one deployable. The UI is static files served by nginx, so nothing else needs to run.
 - **Pragmatism:** the simplest design that fits, with the reasoning recorded, is the goal.
 
 **If scale arrives:** a modular monolith with feature packages is the stepping stone. If insights get heavy, the first step is a read-only replica or a reporting module, not a separate service. Extracting a feature package such as `insights` later means moving the package, adding an API boundary, and splitting its tables. That is bounded work, and far easier than merging microservices back together.
@@ -115,20 +115,22 @@ A component library is a set of ready-made UI parts (tables, forms, dropdowns, d
 
 It does not call the API, format salaries, or draw charts.
 
+See [architecture/architecture.md](architecture/architecture.md) for the architecture diagrams.
+
 ## Still to write
 
 - Schema (employee, salary history, title, department, country and currency)
 - API shape
 - Insights approach (generic slice-by-dimension, per currency)
-- Mermaid architecture diagram
 - Local deployment plan (see below)
 
 ## Deployment
 
 **Current decision:** run locally for now and record the demo video from the local run. Hosted deployment is deferred.
 
-- `docker compose up` starts PostgreSQL and the app (the Spring Boot jar with the Angular build inside), with the 10,000-employee seed applied.
+- `docker compose up` starts three containers: PostgreSQL, the Spring Boot API, and `web` (nginx serving the Angular build and proxying `/api` to the API). The 10,000-employee seed is applied on first start.
+- For development, run the API and `ng serve` with a proxy to `/api`.
 - The shared login credentials come from environment variables.
 - The README will list run, test, and seed commands.
 
-**Open risk:** the brief lists deployed software as a requirement. If it must be hosted, the same Docker image can go to a free host (Render with Neon Postgres was the leading option) as a final step. 
+**Open risk:** the brief lists deployed software as a requirement. If it must be hosted, the same Docker images can go to a free host (Render with Neon Postgres was the leading option) as a final step. 
