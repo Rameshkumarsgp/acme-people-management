@@ -1,0 +1,22 @@
+# OS / IDE
+.DS_Store
+.idea/
+*.iml
+.vscode/
+
+
+# Java / Maven / Gradle
+target/
+build/
+.gradle/
+*.class
+*.log
+
+# Angular / Node
+node_modules/
+dist/
+.angular/
+
+# Env
+.env
+.env.*
