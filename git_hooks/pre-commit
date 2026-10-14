@@ -15,7 +15,8 @@ gitleaks git --pre-commit --staged --no-banner --redact || {
     exit 1
 }
 
-STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+# Markdown is documentation: it never needs the app checks.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -vE '\.md$')
 
 if echo "$STAGED" | grep -qE '^backend/'; then
     echo "pre-commit: backend checks"
