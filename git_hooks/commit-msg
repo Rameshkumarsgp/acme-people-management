@@ -1,0 +1,18 @@
+#!/bin/sh
+# Enforces "<type>: <description>", with an optional scope: feat(salary): add history rule.
+FIRST_LINE=$(head -n 1 "$1")
+
+case "$FIRST_LINE" in
+    Merge\ *|Revert\ *|fixup!\ *|squash!\ *) exit 0 ;;
+esac
+
+if echo "$FIRST_LINE" | grep -qE '^(docs|feat|test|fix|chore|refactor|perf|build): .+'; then
+    exit 0
+fi
+if echo "$FIRST_LINE" | grep -qE '^(docs|feat|test|fix|chore|refactor|perf|build)\([a-z0-9-]+\): .+'; then
+    exit 0
+fi
+
+echo "commit-msg: rejected: \"$FIRST_LINE\""
+echo "Use: <type>: <description>   (types: docs, feat, test, fix, chore, refactor, perf, build)"
+exit 1

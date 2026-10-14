@@ -1,0 +1,30 @@
+#!/bin/sh
+# Fast checks only: secrets, then lint and unit tests for the apps with staged changes.
+# Slower checks (typecheck, Knip, build) run in pre-push. Fails on problems; never re-stages files.
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT" || exit 1
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "pre-commit: gitleaks is not installed. Install it with: brew install gitleaks"
+    exit 1
+fi
+
+echo "pre-commit: scanning staged changes for secrets"
+gitleaks git --pre-commit --staged --no-banner --redact || {
+    echo "pre-commit: possible secret found. Remove it, or add a reasoned allowlist entry."
+    exit 1
+}
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if echo "$STAGED" | grep -qE '^backend/'; then
+    echo "pre-commit: backend checks"
+    make -s test-backend || exit 1
+fi
+
+if echo "$STAGED" | grep -qE '^(frontend/|\.editorconfig$)'; then
+    echo "pre-commit: frontend checks"
+    make -s test-frontend || exit 1
+fi
+
+exit 0
