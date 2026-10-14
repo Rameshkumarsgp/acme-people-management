@@ -1,0 +1,7 @@
+<FindBugsFilter>
+    <!-- Spring Boot entry point and config classes are not designed for extension or immutability -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+        <Class name="~com\.acme\.peoplemanagement\..*(Dto|Properties)"/>
+    </Match>
+</FindBugsFilter>
