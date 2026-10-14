@@ -25,14 +25,7 @@ Status: Draft. Only the architecture decisions are written so far. Remaining sec
 
 ### 1. Repo structure: monorepo
 
-```
-acme-people-management/
-├── backend/        Spring Boot, Gradle
-├── frontend/       Angular
-├── docs/           requirements, design, architecture/adr, ai-usage, tradeoffs
-├── compose.yaml    local run: Postgres, API, web
-└── README.md
-```
+The repo layout is in the root [CLAUDE.md](../CLAUDE.md#repository-layout).
 
 The frontend is a separate app from the API. Locally, a small nginx container serves the built Angular files and forwards `/api` to Spring Boot, so the browser sees one origin and no CORS setup is needed. During development, `ng serve` proxies `/api` to the API.
 
@@ -46,15 +39,7 @@ The frontend is a separate app from the API. Locally, a small nginx container se
 
 ### 2. Backend structure: package-by-feature
 
-```
-com.acme.peoplemanagement
-├── employee/     controller, service, repository, entity, dto
-├── salary/       history rules (pure domain class), service
-├── insights/     generic slice-by-dimension query, controller
-├── reference/    titles and departments
-├── auth/         shared login
-└── config/
-```
+The package rules are in [backend/CLAUDE.md](../backend/CLAUDE.md#structure).
 
 Each feature keeps `controller → service → repository`. The salary history rules sit in plain classes with no Spring or database dependencies, so unit tests stay fast.
 
@@ -69,12 +54,7 @@ Each feature keeps `controller → service → repository`. The salary history r
 
 ### 3. Frontend structure: feature folders with standalone components
 
-```
-src/app
-├── core/       api client, auth guard, interceptor
-├── shared/     reusable table, formatters (money, currency)
-└── features/   directory, employee-form, insights
-```
+The folder rules are in [frontend/CLAUDE.md](../frontend/CLAUDE.md#structure).
 
 Standalone components, lazy-loaded routes, and signals for state. No NgRx: plain services over the API are enough.
 

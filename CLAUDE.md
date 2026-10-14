@@ -38,6 +38,16 @@ A take-home engineering assessment for Incubyte (a hiring process). Evaluators j
 
 Annual base salary only; salary history kept; every employee has a salary; all employees current; per-currency reporting; single HR user; standardized titles and departments with no levels or grades. If a reply arrives, I will tell you and we update `docs/requirements.md` and the design.
 
+## Repository layout
+
+Monorepo:
+
+- `backend/`: Spring Boot API, Gradle. Structure and rules in `backend/CLAUDE.md`.
+- `frontend/`: Angular app. Structure and rules in `frontend/CLAUDE.md`.
+- `docs/`: requirements, design, `architecture/` (diagrams and ADRs), AI usage log, trade-offs.
+- `compose.yaml`: local run of Postgres, API and web (planned).
+- `git_hooks/`, `scripts/`, `Makefile`: developer tooling. `make help` lists the commands.
+
 ## Decisions made (details in docs/design.md and docs/architecture/)
 
 | Area | Decision |
@@ -46,49 +56,23 @@ Annual base salary only; salary history kept; every employee has a salary; all e
 | UI library | Angular Material |
 | Backend | Spring Boot, Java, Gradle, package `com.acme.peoplemanagement` |
 | Database | PostgreSQL (ADR 0001), Liquibase migrations |
-| Repo | Monorepo: `backend/`, `frontend/`, `docs/`, `compose.yaml` |
-| Backend pattern | Package-by-feature (`employee`, `salary`, `insights`, `reference`, `auth`), light layers inside each: controller, service, repository, with salary rules as plain domain classes |
-| Frontend pattern | Feature folders (`core/`, `shared/`, `features/`) |
+| Repo | Monorepo (layout above) |
+| Backend pattern | Package-by-feature with light layers inside each feature. Salary rules are plain domain classes |
+| Frontend pattern | Feature folders with standalone components |
 | Architecture | Modular monolith. No microservices, no hexagonal or DDD layers |
 | Frontend and API | Separate apps. Locally nginx serves the Angular build and proxies `/api`, so no CORS |
 | Hosting | Local first with `docker compose up`. Hosted deploy deferred (fallback: Render + Neon) |
 | Unit tests | JUnit and Mockito. No database or Docker |
 | Integration tests | PostgreSQL via Testcontainers: migrations, constraints, queries, percentile calculations |
 
-## Design rules
+## Per-app rules
 
-- Statistics are computed in the database with `percentile_cont`, not in Java.
-- One generic "slice by dimension" insights mechanism, not hardcoded queries per view.
-- Indexes on country, department, job title. Server-side pagination with a stable sort order.
-- Optimistic locking (`@Version`) on employee records.
-- Route all salary and title changes through one service so history stays consistent.
-- Seed script must be deterministic (fixed random seed) with realistic pay varying by title, country, and tenure.
-- Keep hosting easy later: API base URL from Angular environment config, CORS origins from an env var, shared login by token or Basic header (not cookies), a `/actuator/health` endpoint.
+Design rules and coding conventions live next to the code and load when working in that folder:
 
-## Coding conventions
+- [backend/CLAUDE.md](backend/CLAUDE.md): Java conventions and backend design rules.
+- [frontend/CLAUDE.md](frontend/CLAUDE.md): Angular conventions and frontend design rules.
 
-**Java** (based on the [JetBrains Java best practices](https://blog.jetbrains.com/idea/2024/02/java-best-practices/)):
-- Clear over clever. Methods around 10-20 lines. Focused, cohesive classes.
-- Name with care: no single-letter names, action-based method names, units in names (`timeoutInMs`).
-- Use switch expressions instead of long if-else chains on one value.
-- No empty catch blocks: log, rethrow, or return a meaningful fallback.
-- Prefer immutability (`final`, records, no setters). Prefer composition over inheritance.
-- Use lambdas, enhanced for loops or streams, try-with-resources, and guard clauses to avoid deep nesting.
-- Prefer collections over arrays.
-- Avoid circular dependencies between feature packages.
-- Keep dependencies current and check for vulnerable ones.
-
-**Angular** (based on the [Angular style guide](https://angular.dev/style-guide)). When a file's existing style conflicts, keep consistency:
-- File names are hyphenated and match the main class (`employee-form.ts`). No generic `utils.ts`. Specs are `*.spec.ts` next to the code.
-- A component's files share one base name.
-- App code in `src`, bootstrap in `src/main.ts`. Organize by feature, not by type. One concept per file.
-- Use `inject()` instead of constructor injection.
-- Keep components presentational: move validation and data transforms to separate files. Keep template logic simple, use `computed` for derived values.
-- Order class members: injected dependencies, inputs, outputs, queries, then methods.
-- Use `protected` for members only the template uses, and `readonly` for Angular-initialized properties.
-- Prefer `class` and `style` bindings over `NgClass` and `NgStyle`.
-- Name handlers by what they do (`saveEmployee()`), not by the event (`handleClick()`).
-- Keep lifecycle hooks thin and implement the lifecycle interfaces.
+Rules that cross the API boundary stay in this file (per-currency statistics, salary as integer minor units).
 
 ## How to work with me
 
