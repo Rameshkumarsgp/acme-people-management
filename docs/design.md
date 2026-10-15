@@ -84,7 +84,7 @@ A component library is a set of ready-made UI parts (tables, forms, dropdowns, d
 
 **Why:** the directory needs a sortable, paginated table over 10,000 employees, and the app needs several validated forms. Building these by hand would be overbuilding.
 
-**Why Angular Material:** it is the official Angular library, covers every component we need, and is accessible by default.
+**Why Angular Material:** it is the official Angular library, covers every component we need, and provides accessible building blocks. Labels, validation feedback, focus and keyboard behaviour in our own screens still have to be built and checked.
 
 | Screen | Angular Material provides | Stays in our code |
 |---|---|---|
@@ -134,8 +134,13 @@ erDiagram
 | `department` | `id`, `name` | PK `id`. Unique `name`. |
 | `job_title` | `id`, `name` | PK `id`. Unique `name`. No levels or grades. |
 | `employee` | `id` (`BIGINT` identity), `full_name`, `email`, `hire_date`, `termination_date` (nullable), `department_id`, `job_title_id`, `country_code`, `version` | PK `id`. FKs to the three reference tables. Unique on `lower(email)`. Check `termination_date >= hire_date`. Indexes on `country_code`, `department_id`, `job_title_id`. `version` is the optimistic-lock column. |
-| `salary_entry` | `id` (identity), `employee_id`, `effective_date`, `amount_minor` (`BIGINT`), `currency_code` | PK `id`. FK `employee_id` `ON DELETE CASCADE`. FK `currency_code`. Unique `(employee_id, effective_date)`. Check `amount_minor BETWEEN 1 AND 9007199254740991`. The upper bound is the largest integer that a `double precision` and a JavaScript number both hold exactly, so statistics and the frontend never lose precision. **No end-date column**: it is derived from the next entry. |
+| `salary_entry` | `id` (identity), `employee_id`, `effective_date`, `amount_minor` (`BIGINT`), `currency_code` | PK `id`. FK `employee_id` `ON DELETE CASCADE`. FK `currency_code`. Unique `(employee_id, effective_date)`. Check `amount_minor BETWEEN 1 AND 9007199254740991`. The upper bound is the largest integer that a `double precision` and a JavaScript number both hold exactly, so a single amount is exact in both. Sums can exceed it, see the numeric contract under Insights. **No end-date column**: it is derived from the next entry. |
 | `salary_entry_change` | `id`, `employee_id`, `entry_id`, `action` (`ADDED`, `EDITED`, `DELETED`), `old_effective_date`, `old_amount_minor`, `old_currency_code`, `new_effective_date`, `new_amount_minor`, `new_currency_code`, `changed_at` (`TIMESTAMPTZ`) | PK `id`. FK `employee_id` `ON DELETE CASCADE`. `entry_id` is deliberately not a FK: the entry may be gone. Index `(employee_id, changed_at DESC)`. |
+
+### Scope notes
+
+- Departments and job titles are one global list. They are not specific to a country.
+- The change log covers salary entries only. Profile changes and terminations are not audited.
 
 ### What the database enforces and what the service enforces
 
@@ -153,7 +158,7 @@ The rules that span several rows cannot be expressed as constraints without a tr
 
 The same validator covers adding, editing and deleting an entry, and editing the hire or termination date. Nothing needs a separate rule for each operation.
 
-**Locking.** Two requests could both validate against the old state. So every operation that can affect these invariants takes the same row lock on the employee, re-reads the committed state under that lock, then validates and writes. That includes salary add, edit and delete, hire and termination date edits, and employee delete. Ordinary profile edits also use the optimistic `version`. The two mechanisms solve different problems and coexist. The lock does not bump `version`, so a salary change does not invalidate an open employee edit form. Integration tests fire conflicting requests concurrently and assert the **final database state**, not only the responses. For example, a raise is added while the employee is terminated before it, and the second request must fail.
+**Locking.** Two requests could both validate against the old state. So every operation that can affect these invariants takes the same row lock on the employee, re-reads the committed state under that lock, then validates and writes. That includes salary add, edit and delete, hire and termination date edits, and employee delete. `PUT /api/employees/{id}` always checks the optimistic `version`, and takes the lock and revalidates the timeline whenever `hireDate` or `terminationDate` change. The version increments on every successful profile update. The two mechanisms solve different problems and coexist. Salary operations take the lock but do not bump `version`, so a salary change does not invalidate an open employee edit form. That is safe because the profile fields are independent of the salary amounts, and a stale form that changes a date is revalidated against the current timeline under the lock. A test submits a stale profile form after a concurrent salary change and asserts the final state. Integration tests fire conflicting requests concurrently and assert the **final database state**, not only the responses. For example, a raise is added while the employee is terminated before it, and the second request must fail.
 
 ### Deleting an employee
 
@@ -176,7 +181,7 @@ Written once and reused by the directory and the insights:
 - **Active employee:** `termination_date` is null or on or after `asOf`.
 - **Current salary:** the latest entry dated on or before `asOf`.
 
-`asOf` is today, taken from an injected `Clock` in UTC. SQL receives it as a parameter, so queries stay deterministic. A database view cannot take a parameter, so the exact form (query fragment or lateral join) is chosen in the directory slice and measured on the 10,000-row seed.
+`asOf` is today in the business timezone, taken from an injected `Clock`. The timezone is set through an environment variable and defaults to UTC. Timestamps are always stored in UTC. SQL receives it as a parameter, so queries stay deterministic. A database view cannot take a parameter, so the exact form (query fragment or lateral join) is chosen in the directory slice and measured on the 10,000-row seed.
 
 ### Migration order
 
@@ -196,8 +201,8 @@ REST and JSON under `/api`. Fields are camelCase. Dates are `YYYY-MM-DD`. Every 
 
 | Topic | Convention |
 |---|---|
-| Auth | HTTP Basic with the shared credentials from environment config. The 401 response carries **no `WWW-Authenticate` challenge**, so the browser never shows its login prompt or caches the credentials, and a test asserts the header is absent. The frontend keeps the credentials in memory only, so a page refresh means logging in again, and sends them on every call. `GET /api/auth/me` returns 200 for valid credentials and 401 otherwise. `/actuator/health` shows status only, no details. |
-| Money | `{ "amountMinor": 125000000, "currency": "INR" }`. The frontend formats using `minorUnitDigits` from `GET /api/reference/currencies`. |
+| Auth | HTTP Basic with the shared credentials from environment config. Every `/api` endpoint is authenticated by default, and the browser reaches the API through the same origin. As defense in depth, the 401 response carries **no `WWW-Authenticate` challenge**, so the browser never shows its login prompt or caches credentials, and a test asserts the header is absent. That is not the main control: browser behaviour varies, so a hosted deployment must use HTTPS. One shared account cannot attribute a change to a person. The frontend keeps the credentials in memory only, so a page refresh means logging in again, and sends them on every call. `GET /api/auth/me` returns 200 for valid credentials and 401 otherwise. `/actuator/health` shows status only, no details. |
+| Money | `{ "amountMinor": 125000000, "currency": "INR" }`. The frontend formats using `minorUnitDigits` from `GET /api/reference/currencies`. Insight totals are decimal strings (see Insights). |
 | Errors | `application/problem+json` with `type`, `title`, `status`, `detail`. Validation failures add `errors: [{ field, message }]`. Business rules add a stable `code`. |
 | Status codes | 400 invalid input. 401 no or bad login. 404 not found. 409 stale `version` or duplicate email. 422 business rule broken. |
 | Pagination | `page` (from 0), `size` (default 20, max 100), `sort=field,asc|desc`. A stable `id` tie-breaker is always appended. The response is our own envelope: `{ content, page, size, totalElements, totalPages }`. |
@@ -279,11 +284,17 @@ The `currency` filter means the currency of the employee's **current salary**. *
 - `GET /api/insights?dimension=COUNTRY|DEPARTMENT|JOB_TITLE|TITLE_COUNTRY|TENURE` plus the same filters as the directory. Returns one group per slice value and currency: `headcount`, `total`, `min`, `median`, `mean`, `max`, computed in the database with `percentile_cont`.
 - `GET /api/insights/extremes?order=HIGHEST|LOWEST&limit=N&currency=...` plus filters. A currency is required, for the same reason as sorting. Results are ordered by amount, then by employee ID, so ties are stable. At most `limit` employees are returned, even when that splits a tie. Each result includes its salary effective date.
 
-**Numeric contract.** `total`, `min` and `max` are exact integers in minor units. `median` and `mean` can be fractional, so they are returned as integer minor units rounded half up, calculated after casting to `numeric`. A test pins this rule with an even-sized group, such as middle values 100 and 101.
+**Numeric contract.** `total`, `min` and `max` are exact in minor units. `median` and `mean` can be fractional, so they are returned as integer minor units rounded half up, calculated after casting to `numeric`. A test pins this rule with an even-sized group, such as middle values 100 and 101.
+
+A sum of many amounts can exceed the largest integer a JavaScript number holds exactly, even though each amount cannot. The database sum is exact (`sum` of a `bigint` returns `numeric`), but a JSON number would lose precision in the browser. So **`total` is returned as a decimal string**. `min`, `max`, `mean` and `median` stay numbers, because they are bounded by the per-entry cap. The median goes through `percentile_cont`, whose input types we have not verified against the PostgreSQL manual, so a test with values near the cap pins its behaviour.
+
+**Headcount** counts the employees in that slice and currency only. Statistics from different currencies are never added together.
+
+**Query safety.** The supported dimensions are a fixed set, and each maps to a fixed SQL expression. Filter values are bound parameters. The client never supplies a column name or any SQL fragment.
 
 **Tenure bands.** Under 1 year, 1 to under 3, 3 to under 5, 5 to under 10, and 10 or more. Tenure runs from the hire date to the earlier of today and the termination date, in completed years, so every employee falls into exactly one band. Final bands are confirmed in the insights slice.
 
-**Tests to write for the insights slice:** an empty group, a single employee, even and odd group sizes, several currencies, a future-dated entry, a former employee, an employee on exactly a tenure boundary, and a tie in the extremes.
+**Tests to write for the insights slice:** an empty group, a single employee, even and odd group sizes, several currencies, a future-dated entry, a former employee, an employee on exactly a tenure boundary, a tie in the extremes, and a total above the JavaScript-safe integer that round-trips unchanged through the API and the Angular parsing path.
 
 ## Data loading
 
@@ -299,7 +310,7 @@ One loader serves two purposes: migrating ACME's existing spreadsheet, and loadi
 
 **Rules.** Each row goes through the pure timeline validator and the reference lookups, so imported data obeys the same rules as typed data. A row is rejected, not the whole file. A rejected row is reported with its row number, field and reason, and the other rows still load. The summary gives counts loaded and rejected, and the exit status is non-zero when anything was rejected.
 
-**Re-running** the same file loads nothing new, because a duplicate email is rejected as `EMAIL_ALREADY_EXISTS`.
+**Re-running** the same file is duplicate-safe but not a no-op: every row already loaded is reported as `EMAIL_ALREADY_EXISTS`, nothing new is loaded, and the exit status is non-zero.
 
 **Limits, stated up front.**
 
