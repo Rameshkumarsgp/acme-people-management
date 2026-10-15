@@ -201,10 +201,10 @@ REST and JSON under `/api`. Fields are camelCase. Dates are `YYYY-MM-DD`. Every 
 
 | Topic | Convention |
 |---|---|
-| Auth | HTTP Basic with the shared credentials from environment config. Every `/api` endpoint is authenticated by default, and the browser reaches the API through the same origin. As defense in depth, the 401 response carries **no `WWW-Authenticate` challenge**, so the browser never shows its login prompt or caches credentials, and a test asserts the header is absent. That is not the main control: browser behaviour varies, so a hosted deployment must use HTTPS. One shared account cannot attribute a change to a person. The frontend keeps the credentials in memory only, so a page refresh means logging in again, and sends them on every call. `GET /api/auth/me` returns 200 for valid credentials and 401 otherwise. `/actuator/health` shows status only, no details. |
+| Auth | HTTP Basic with the shared credentials from environment config. Every `/api` endpoint is authenticated by default, and the browser reaches the API through the same origin. As defense in depth, the 401 response carries **no `WWW-Authenticate` challenge**, so the browser never shows its login prompt or caches credentials, and a test asserts the header is absent. That is not the main control: browser behaviour varies, so a hosted deployment must use HTTPS. One shared account cannot attribute a change to a person. A throttle blocks a client after 5 failed attempts within 60 seconds, answering 429 with `Retry-After`. See [tradeoffs.md](tradeoffs.md). The frontend keeps the credentials in memory only, so a page refresh means logging in again, and sends them on every call. `GET /api/auth/me` returns 200 for valid credentials and 401 otherwise. `/actuator/health` shows status only, no details. |
 | Money | `{ "amountMinor": 125000000, "currency": "INR" }`. The frontend formats using `minorUnitDigits` from `GET /api/reference/currencies`. Insight totals are decimal strings (see Insights). |
 | Errors | `application/problem+json` with `type`, `title`, `status`, `detail`. Validation failures add `errors: [{ field, message }]`. Business rules add a stable `code`. |
-| Status codes | 400 invalid input. 401 no or bad login. 404 not found. 409 stale `version` or duplicate email. 422 business rule broken. |
+| Status codes | 400 invalid input. 401 no or bad login. 404 not found. 409 stale `version` or duplicate email. 422 business rule broken. 429 too many failed login attempts. |
 | Pagination | `page` (from 0), `size` (default 20, max 100), `sort=field,asc|desc`. A stable `id` tie-breaker is always appended. The response is our own envelope: `{ content, page, size, totalElements, totalPages }`. |
 | Concurrency | The employee resource carries `version`. Edits and deletes send it back. A mismatch is a 409 `VERSION_CONFLICT`. |
 
@@ -238,7 +238,7 @@ Each slice delivers a working increment: the API, then its Angular screen, then 
 
 | Slice | Backend | Frontend |
 |---|---|---|
-| 0 | Shared login, `GET /api/auth/me`, 401 without a challenge header | Login page, credentials in memory, request interceptor, auth guard |
+| 0 | Shared login, `GET /api/auth/me`, 401 without a challenge header, failed-attempt throttle | Login page, credentials in memory, request interceptor, auth guard |
 | 1 | Persistence foundation and the four reference lists | None |
 | 2 | Create employee with the first salary entry, employee detail | Create-employee form, employee detail page |
 | 3 | Salary history list, add an entry | History table on the detail page, add-change dialog, current and scheduled markers |

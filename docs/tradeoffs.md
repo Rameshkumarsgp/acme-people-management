@@ -52,3 +52,24 @@ Decisions where we chose one cost over another, with the cost stated. Performanc
 | No migration path | The first question an evaluator would ask, and a real system cannot start empty. |
 
 **Related.** [design.md](design.md), section "Data loading".
+
+## The shared HTTP Basic login is proportionate for this assessment, not production authentication
+
+**Decision.** One shared account, HTTP Basic, credentials from environment config, no session and no cookie. Every `/api` endpoint is authenticated by default, the app refuses to start without credentials, and a throttle limits failed attempts.
+
+**Why.** The brief has one HR persona and a shared login. This needs no identity provider, no token service and no user table, and it is easy to test.
+
+**What it costs.**
+
+- The password is sent on every request, so a stolen request or a script injected into the page exposes the password itself, not a short-lived token.
+- The frontend keeps the credentials in memory, so a cross-site scripting flaw could read them. A page refresh means logging in again.
+- One shared account cannot attribute a change to a person. The change log records what and when, never who.
+- There is no multi-factor authentication or rotation, and the password lives in an environment variable.
+- Basic over plain HTTP is only acceptable on localhost. A hosted deployment needs HTTPS.
+- **The throttle is effectively global.** Behind nginx, every request reaches the API from nginx's address, so failed attempts are counted together. Someone who keeps guessing wrongly can block logins for the throttle window. We accept this for one user and do not trust forwarded-address headers, which a client can forge.
+
+**Safeguards.** Authenticated by default. Fail-fast startup without credentials. The 401 carries no `WWW-Authenticate` challenge, as defense in depth against browser credential caching. After 5 failed attempts within 60 seconds the API answers 429 with `Retry-After`, and credentials are not checked during that window, so a correct guess cannot slip through.
+
+**Upgrade path.** Short-lived tokens issued by a login endpoint, so the password is sent once. Individual accounts and roles, which also enable a "who changed it" trail (question 6 in `requirements.md`). Then a real identity provider.
+
+**Related.** [design.md](design.md), the API conventions table.
