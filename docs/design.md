@@ -113,6 +113,7 @@ Settled while designing the data model and API. Each was debated against alterna
 | 8 | Every add, edit and delete of a salary entry is written to a change table by the salary service, in the same transaction. | HR can see what changed and when. There is one shared login, so there is no "who". |
 | 9 | No salary entry is dated after the termination date. | A leaver's last entry means what they were paid when they left. |
 | 10 | The termination date is the **last employed day**. An employee is active on that date and former after it. | One meaning, used by the directory, the status filter and the insights. It also matches rule 9, which allows an entry dated on the termination date. |
+| 11 | Migration from Excel is a one-time **CSV load from the command line**, through the same validation as typed data. The seed is the same loader fed by a generator. | HR will not retype 10,000 employees, but an upload screen is a feature of its own. Excel saves as CSV, so no spreadsheet parsing is needed. |
 
 ## Data model
 
@@ -185,7 +186,7 @@ One Liquibase changeset per slice, never one big migration:
 2. Slice 2: `employee`, `salary_entry`.
 3. Salary editing slice (slice 7): `salary_entry_change`.
 
-The seed writes rows directly and skips the change log, because an initial load is not a change.
+The seed and the CSV loader are the same code (see Data loading). Rows go through the pure timeline validator and the reference lookups, then are written without change-log rows, because an initial load is not a change.
 
 ## API
 
@@ -226,7 +227,7 @@ Business rule codes: `DUPLICATE_SALARY_DATE`, `SALARY_BEFORE_HIRE_DATE`, `NO_CUR
 | `GET /api/insights` | Statistics per slice and currency (sketch below) | 8 |
 | `GET /api/insights/extremes` | Highest or lowest paid individuals (sketch below) | 8 |
 
-Slice 4 is the deterministic seed of 10,000 employees and has no endpoint. It comes before the directory and the insights, so both are built and measured against realistic volume.
+Slice 4 is the CSV loader and the deterministic seed generator. It has no endpoint and comes before the directory and the insights, so both are built and measured against realistic volume.
 
 ### Shapes (first slices)
 
@@ -268,10 +269,33 @@ The `currency` filter means the currency of the employee's **current salary**. *
 
 **Tests to write for the insights slice:** an empty group, a single employee, even and odd group sizes, several currencies, a future-dated entry, a former employee, an employee on exactly a tenure boundary, and a tie in the extremes.
 
+## Data loading
+
+One loader serves two purposes: migrating ACME's existing spreadsheet, and loading the 10,000-employee seed. The seed is a deterministic generator that writes a CSV in the loader's format. It runs from the command line (the exact mechanism is chosen in slice 4). There is no upload screen.
+
+**CSV format.** One row per employee with their current salary:
+
+`fullName, email, hireDate, department, jobTitle, countryCode, currency, salary, salaryEffectiveDate, terminationDate`
+
+- `terminationDate` is optional, so leavers can be migrated. `salaryEffectiveDate` is optional and defaults to the hire date.
+- `salary` is written in major units, as Excel holds it (`1250000.00`). The loader converts it using the currency's minor-unit digits and rejects an amount with more decimals than the currency allows.
+- `department` and `jobTitle` match the reference names, ignoring case and surrounding spaces.
+
+**Rules.** Each row goes through the pure timeline validator and the reference lookups, so imported data obeys the same rules as typed data. A row is rejected, not the whole file. A rejected row is reported with its row number, field and reason, and the other rows still load. The summary gives counts loaded and rejected, and the exit status is non-zero when anything was rejected.
+
+**Re-running** the same file loads nothing new, because a duplicate email is rejected as `EMAIL_ALREADY_EXISTS`.
+
+**Limits, stated up front.**
+
+- **Titles and departments are a standardized list that HR cannot extend.** A spreadsheet with free-text titles will have rows rejected for unknown values. The report groups them, so it is clear what to add to the list through a migration. See [tradeoffs.md](tradeoffs.md).
+- Only the current salary is loaded. A second file for salary history can be added later.
+- `.xlsx` is not parsed. HR saves the sheet as CSV.
+- Throughput is unmeasured. We measure the 10,000-row load in slice 4 and batch the writes if it is slow.
+
 ## Still to write
 
 - Insights approach in detail (the generic slice-by-dimension query)
-- Seed design: realistic and deterministic pay by title, country and tenure, across several countries and currencies
+- Seed generator: realistic and deterministic pay by title, country and tenure, across several countries and currencies, written as a CSV in the loader's format
 - Local deployment plan (see below)
 
 ## Deployment

@@ -34,7 +34,7 @@ Every view can be filtered by country, department, and job title. Measures are h
 4. **Salary history:** each salary change is a dated entry with its own currency. The current salary is the latest entry dated on or before today, so a raise can be entered in advance. Each entry's end date is derived from the next one, so overlapping periods cannot occur. Every change is checked against the resulting timeline: dates are unique, the earliest entry is on or after the hire date, at least one entry is effective on or before today, and no entry is dated after the termination date. HR can add, edit or delete any entry as long as the resulting timeline is valid. Every add, edit and delete is recorded in a change log showing what changed and when.
 5. **Data integrity:** stable employee IDs, database constraints, transactional updates, and input validation.
 6. **Usability:** clear loading, empty, validation, and error states.
-7. **Seed script:** deterministic generation of 10,000 employees with realistic pay by title, country, and tenure.
+7. **Data loading:** a command-line CSV loader that validates each row and loads employees with their current salary, which is the migration path from Excel. A deterministic generator produces 10,000 employees with realistic pay by title, country, and tenure in the loader's format, and is the seed.
 8. **Delivery:** unit tests on core rules, integration tests on insight queries against a real database, setup docs, a live deployment, and a short demo video.
 
 ## Deliberately left out, and why
@@ -42,6 +42,7 @@ Every view can be filtered by country, department, and job title. Measures are h
 - **Performance reviews, promotions, recruitment, and leave:** separate capabilities. Promotions can build on salary history later, and performance data is more sensitive.
 - **Gender/diversity pay equity:** we hold no such data, and it needs sensitivity handling.
 - **Payroll, payslips, tax, and bank transfers:** need financial and regulatory workflows.
+- **Upload screen, `.xlsx` parsing and export:** migration is a one-time CSV load from the command line. An upload screen with column mapping and row-level error review is a feature of its own, and exporting salary data widens the surface where it can leak.
 - **Maintaining departments and job titles in the app:** these are standardized reference data managed through migrations. HR cannot add a title without a code change.
 
 ## Open questions and working assumptions

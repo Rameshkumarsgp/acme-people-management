@@ -30,3 +30,25 @@ Decisions where we chose one cost over another, with the cost stated. Performanc
 | Allow delete only with one salary entry | A speed bump only: HR can delete entries one by one first. |
 
 **Related.** [design.md](design.md), section "Deleting an employee".
+
+## Excel migration is a CSV loader, not an upload screen
+
+**Decision.** Migrating ACME's existing spreadsheet is a one-time CSV load from the command line. The 10,000-employee seed is the same loader fed by a deterministic generator. There is no upload screen, no `.xlsx` parsing and no export.
+
+**Why.** HR will not retype 10,000 employees, so a migration path must exist. The loader is needed for the seed anyway, so supporting a documented CSV format costs little. Excel saves as CSV. An upload screen with column mapping and a per-row error review is a feature on the scale of the directory.
+
+**What it costs.**
+
+- **Titles and departments must already exist.** They are a standardized list that HR cannot extend, so a spreadsheet with free-text titles has those rows rejected for unknown values. The report groups the rejections, and adding a title needs a migration. For a real cutover this limitation may not hold, and it ties back to the question to Incubyte about standardized versus free-text titles.
+- Only the current salary is loaded. Salary history needs a second file.
+- HR must export the sheet to CSV first.
+- Throughput of loading 10,000 rows is unmeasured. We record the number here once the seed slice is built.
+
+**Alternatives rejected.**
+
+| Option | Why not |
+|---|---|
+| In-app upload screen | Column mapping, preview and row-level error review are a feature of their own. |
+| No migration path | The first question an evaluator would ask, and a real system cannot start empty. |
+
+**Related.** [design.md](design.md), section "Data loading".
