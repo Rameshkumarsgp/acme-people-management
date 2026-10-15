@@ -24,14 +24,14 @@ The HR Manager (single persona). They need accurate salary data, quick updates, 
 | Tenure | How does pay change with years at the company? |
 | Individuals | Who are the highest and lowest paid within any of the above? |
 
-Every view can be filtered by country, department, and job title. Measures are headcount, total, min, median, mean, and max, **always computed per currency**.
+Every view can be filtered by country, department, and job title. Measures are headcount, total, min, median, mean, and max, **always computed per currency**. Insights cover active employees by default, using each employee's salary as of today. Historical snapshots are not in the MVP.
 
 ## Scope (MVP)
 
 1. **Compensation insights (core):** the questions above.
 2. **Employee directory:** server-side search, filter, sort, and pagination. Shows employee ID, name, department, title, country, currency, and current salary.
-3. **Employee management:** create, edit, and delete employees (name, email, department, title, country, currency, hire date).
-4. **Salary history:** each salary change is a new dated entry. The current salary is the latest entry, and each entry's end date is derived from the next one, so overlapping periods cannot occur. A new entry's effective date must be later than the latest existing one.
+3. **Employee management:** create, edit, and delete employees (name, email, department, title, country, hire date, and an optional termination date). Delete is for records entered by mistake and removes the employee with their history. An employee who left is given a termination date, the last day they were employed, and stays in the data.
+4. **Salary history:** each salary change is a dated entry with its own currency. The current salary is the latest entry dated on or before today, so a raise can be entered in advance. Each entry's end date is derived from the next one, so overlapping periods cannot occur. Every change is checked against the resulting timeline: dates are unique, the earliest entry is on or after the hire date, at least one entry is effective on or before today, and no entry is dated after the termination date. HR can add, edit or delete any entry as long as the resulting timeline is valid. Every add, edit and delete is recorded in a change log showing what changed and when.
 5. **Data integrity:** stable employee IDs, database constraints, transactional updates, and input validation.
 6. **Usability:** clear loading, empty, validation, and error states.
 7. **Seed script:** deterministic generation of 10,000 employees with realistic pay by title, country, and tenure.
@@ -42,6 +42,7 @@ Every view can be filtered by country, department, and job title. Measures are h
 - **Performance reviews, promotions, recruitment, and leave:** separate capabilities. Promotions can build on salary history later, and performance data is more sensitive.
 - **Gender/diversity pay equity:** we hold no such data, and it needs sensitivity handling.
 - **Payroll, payslips, tax, and bank transfers:** need financial and regulatory workflows.
+- **Maintaining departments and job titles in the app:** these are standardized reference data managed through migrations. HR cannot add a title without a code change.
 
 ## Open questions and working assumptions
 
@@ -52,7 +53,7 @@ Questions sent. Until they reply, we proceed with the defaults below.
 | 1 | Annual base salary only, or bonuses and other pay too? | Annual base salary only, stored as integer minor units | Add a pay-component table (type, amount). Insights gain a "pay type" filter. |
 | 2 | Should previous salary records be kept when a salary is updated? | Yes. Salary history is in the MVP as an append-only dated list | If no, drop the history table and keep a single current salary, which simplifies the model |
 | 3 | Do we handle employees without a salary (interns, unpaid)? | No. Every employee has a salary | Allow a nullable salary. Headcount counts everyone, and salary statistics exclude people without one |
-| 4 | Include former employees along with current ones? | No. All employees are current | Add an active flag and termination date. Insights default to active only, with a toggle |
+| 4 | Include former employees along with current ones? | Yes. A leaver gets a termination date and stays in the data. Insights and the directory default to active employees, with a status filter | If former employees are not wanted, drop the termination date and the status filter |
 | 5 | Show salaries per currency, or convert to a common currency? | Per currency, never mixed | Add an FX rate table with a documented rate date and a "converted view", kept separate from native figures |
 | 6 | Single HR Manager, or multiple users with roles? | Single persona with one shared login for protection | If multiple users, add user accounts and roles, which also enables a "who changed it" trail |
 | 7 | Are job titles and departments a standardized list, or free text? | Standardized lists, stored as reference data. No levels or grades | If free text, normalize on entry (trim, case-fold) and warn that title comparisons may be unreliable. If a level or grade structure exists, add a level field so "same role" comparisons can be made per level |

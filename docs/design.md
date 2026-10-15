@@ -1,6 +1,6 @@
 # ACME People Management: Design [WIP]
 
-Status: Draft. Only the architecture decisions are written so far. Remaining sections are listed at the end.
+Status: Draft. Architecture decisions, the data model and the API are written. Remaining sections are listed at the end.
 
 ## Decisions so far
 
@@ -19,7 +19,7 @@ Status: Draft. Only the architecture decisions are written so far. Remaining sec
 ## Testing approach
 
 - **Unit tests:** JUnit and Mockito. No database or Docker. They cover salary history rules, validation, and service logic, and run in milliseconds.
-- **Database integration tests:** PostgreSQL with Testcontainers. They verify migrations, constraints, queries, and percentile calculations.
+- **Database integration tests:** PostgreSQL with Testcontainers. They verify migrations, constraints, queries, and percentile calculations. They also verify that deleting an employee removes their salary entries and change rows and leaves other employees untouched, that deleting a single salary entry keeps its change rows, and that a salary change and its change-log row succeed or fail together.
 
 ## Architecture decisions and alternatives
 
@@ -97,11 +97,181 @@ It does not call the API, format salaries, or draw charts.
 
 See [architecture/architecture.md](architecture/architecture.md) for the architecture diagrams.
 
+## Domain decisions
+
+Settled while designing the data model and API. Each was debated against alternatives.
+
+| # | Decision | Why |
+|---|---|---|
+| 1 | Currency belongs to each **salary entry**, not the employee. A `currency` table holds the ISO code and its minor-unit digits. | An employee can relocate and be paid in a new currency. Editing a currency on the employee would silently re-label old amounts. Minor units differ by currency (JPY 0, USD 2, KWD 3). |
+| 2 | Employee ID is a database-generated `BIGINT`, used in URLs. | Smallest index, readable, stable. No external exposure to protect against. |
+| 3 | The first salary entry is on or after the hire date and no later than today. | History starts when it is known. A salary cannot predate the hire. Everyone always has a current salary. |
+| 4 | Money travels as integer minor units plus a currency code. | One representation from database to API. The backend never converts or rounds. |
+| 5 | **Delete** removes a record entered by mistake, with its history. An employee who left gets a **termination date** and stays in the data. | "Entered by mistake" and "left the company" are different events. |
+| 6 | Future-dated salary entries are allowed. **Current salary** is the latest entry dated on or before `asOf`. | HR enters raises in advance. No scheduler: "current" is computed at query time. |
+| 7 | Any entry can be added, edited or deleted, as long as the **resulting timeline** is valid. | A typo must be fixable. Checking the final timeline replaces separate rules per operation. |
+| 8 | Every add, edit and delete of a salary entry is written to a change table by the salary service, in the same transaction. | HR can see what changed and when. There is one shared login, so there is no "who". |
+| 9 | No salary entry is dated after the termination date. | A leaver's last entry means what they were paid when they left. |
+| 10 | The termination date is the **last employed day**. An employee is active on that date and former after it. | One meaning, used by the directory, the status filter and the insights. It also matches rule 9, which allows an entry dated on the termination date. |
+
+## Data model
+
+```mermaid
+erDiagram
+    COUNTRY ||--o{ EMPLOYEE : "works in"
+    DEPARTMENT ||--o{ EMPLOYEE : "belongs to"
+    JOB_TITLE ||--o{ EMPLOYEE : "holds"
+    EMPLOYEE ||--|{ SALARY_ENTRY : "has"
+    CURRENCY ||--o{ SALARY_ENTRY : "paid in"
+    EMPLOYEE ||--o{ SALARY_ENTRY_CHANGE : "audited by"
+```
+
+| Table | Columns | Constraints and indexes |
+|---|---|---|
+| `currency` | `code` (ISO 4217), `minor_unit_digits` | PK `code`. Check `minor_unit_digits >= 0`. |
+| `country` | `code` (ISO 3166 alpha-2), `name` | PK `code`. |
+| `department` | `id`, `name` | PK `id`. Unique `name`. |
+| `job_title` | `id`, `name` | PK `id`. Unique `name`. No levels or grades. |
+| `employee` | `id` (`BIGINT` identity), `full_name`, `email`, `hire_date`, `termination_date` (nullable), `department_id`, `job_title_id`, `country_code`, `version` | PK `id`. FKs to the three reference tables. Unique on `lower(email)`. Check `termination_date >= hire_date`. Indexes on `country_code`, `department_id`, `job_title_id`. `version` is the optimistic-lock column. |
+| `salary_entry` | `id` (identity), `employee_id`, `effective_date`, `amount_minor` (`BIGINT`), `currency_code` | PK `id`. FK `employee_id` `ON DELETE CASCADE`. FK `currency_code`. Unique `(employee_id, effective_date)`. Check `amount_minor BETWEEN 1 AND 9007199254740991`. The upper bound is the largest integer that a `double precision` and a JavaScript number both hold exactly, so statistics and the frontend never lose precision. **No end-date column**: it is derived from the next entry. |
+| `salary_entry_change` | `id`, `employee_id`, `entry_id`, `action` (`ADDED`, `EDITED`, `DELETED`), `old_effective_date`, `old_amount_minor`, `old_currency_code`, `new_effective_date`, `new_amount_minor`, `new_currency_code`, `changed_at` (`TIMESTAMPTZ`) | PK `id`. FK `employee_id` `ON DELETE CASCADE`. `entry_id` is deliberately not a FK: the entry may be gone. Index `(employee_id, changed_at DESC)`. |
+
+### What the database enforces and what the service enforces
+
+The database enforces what a constraint can express: keys, foreign keys, not-null, unique email, one entry per employee per date, the amount range, `termination_date >= hire_date`, and the delete cascade.
+
+The rules that span several rows cannot be expressed as constraints without a trigger. We keep triggers out and put them in one pure domain class (no Spring, no database). For every change that can affect an employee's salary timeline, the service builds the **resulting timeline** and validates these invariants on it:
+
+| Invariant | Error code |
+|---|---|
+| Effective dates are unique per employee | `DUPLICATE_SALARY_DATE` |
+| The earliest entry is on or after the hire date | `SALARY_BEFORE_HIRE_DATE` |
+| At least one entry is effective on or before today, so there is always a current salary (this also rejects an empty timeline) | `NO_CURRENT_SALARY` |
+| The latest entry is on or before the termination date, if there is one | `SALARY_AFTER_TERMINATION` |
+| The termination date is on or after the hire date | `TERMINATION_BEFORE_HIRE_DATE` |
+
+The same validator covers adding, editing and deleting an entry, and editing the hire or termination date. Nothing needs a separate rule for each operation.
+
+**Locking.** Two requests could both validate against the old state. So every operation that can affect these invariants takes the same row lock on the employee, re-reads the committed state under that lock, then validates and writes. That includes salary add, edit and delete, hire and termination date edits, and employee delete. Ordinary profile edits also use the optimistic `version`. The two mechanisms solve different problems and coexist. The lock does not bump `version`, so a salary change does not invalidate an open employee edit form. Integration tests fire conflicting requests concurrently and assert the **final database state**, not only the responses. For example, a raise is added while the employee is terminated before it, and the second request must fail.
+
+### Deleting an employee
+
+Deleting removes the employee, their salary entries and their change-log rows in one statement (`ON DELETE CASCADE`). This is deliberate. Delete is for records entered by mistake. An employee who left is terminated and keeps their history. Deleting a single salary entry keeps its change rows, because `entry_id` is not a foreign key.
+
+We chose this because it is the simplest option and leaves nothing retained or mis-handled after a delete. It does not by itself satisfy any legal erasure or retention requirement: backups and logs are outside it, and some jurisdictions require salary records to be kept for a period.
+
+Safeguards against deleting the wrong employee:
+
+- `DELETE /api/employees/{id}` requires the employee's `version`, like `PUT`. A delete based on a stale view fails with 409 `VERSION_CONFLICT`.
+- The UI asks for confirmation. That only prevents a mis-click and is not a control.
+- The real protection is database backups, which a local deployment does not have.
+
+The cost, the residual risk and the upgrade path are in [tradeoffs.md](tradeoffs.md).
+
+### Shared query definitions
+
+Written once and reused by the directory and the insights:
+
+- **Active employee:** `termination_date` is null or on or after `asOf`.
+- **Current salary:** the latest entry dated on or before `asOf`.
+
+`asOf` is today, taken from an injected `Clock` in UTC. SQL receives it as a parameter, so queries stay deterministic. A database view cannot take a parameter, so the exact form (query fragment or lateral join) is chosen in the directory slice and measured on the 10,000-row seed.
+
+### Migration order
+
+One Liquibase changeset per slice, never one big migration:
+
+1. Slice 1: `currency`, `country`, `department`, `job_title`, with their reference rows.
+2. Slice 2: `employee`, `salary_entry`.
+3. Salary editing slice (slice 7): `salary_entry_change`.
+
+The seed writes rows directly and skips the change log, because an initial load is not a change.
+
+## API
+
+REST and JSON under `/api`. Fields are camelCase. Dates are `YYYY-MM-DD`. Every `/api` call needs the shared login. `/actuator/health` is open.
+
+### Conventions
+
+| Topic | Convention |
+|---|---|
+| Auth | HTTP Basic with the shared credentials from environment config. The 401 response carries **no `WWW-Authenticate` challenge**, so the browser never shows its login prompt or caches the credentials, and a test asserts the header is absent. The frontend keeps the credentials in memory only, so a page refresh means logging in again, and sends them on every call. `GET /api/auth/me` returns 200 for valid credentials and 401 otherwise. `/actuator/health` shows status only, no details. |
+| Money | `{ "amountMinor": 125000000, "currency": "INR" }`. The frontend formats using `minorUnitDigits` from `GET /api/reference/currencies`. |
+| Errors | `application/problem+json` with `type`, `title`, `status`, `detail`. Validation failures add `errors: [{ field, message }]`. Business rules add a stable `code`. |
+| Status codes | 400 invalid input. 401 no or bad login. 404 not found. 409 stale `version` or duplicate email. 422 business rule broken. |
+| Pagination | `page` (from 0), `size` (default 20, max 100), `sort=field,asc|desc`. A stable `id` tie-breaker is always appended. The response is our own envelope: `{ content, page, size, totalElements, totalPages }`. |
+| Concurrency | The employee resource carries `version`. Edits and deletes send it back. A mismatch is a 409 `VERSION_CONFLICT`. |
+
+Business rule codes: `DUPLICATE_SALARY_DATE`, `SALARY_BEFORE_HIRE_DATE`, `NO_CURRENT_SALARY`, `SALARY_AFTER_TERMINATION`, `TERMINATION_BEFORE_HIRE_DATE`, `EMAIL_ALREADY_EXISTS`, `VERSION_CONFLICT`.
+
+### Endpoints
+
+| Method and path | Purpose | Slice |
+|---|---|---|
+| `GET /api/auth/me` | Check the login | 0 |
+| `GET /api/reference/countries` | `[{ code, name }]` | 1 |
+| `GET /api/reference/departments` | `[{ id, name }]` | 1 |
+| `GET /api/reference/job-titles` | `[{ id, name }]` | 1 |
+| `GET /api/reference/currencies` | `[{ code, minorUnitDigits }]` | 1 |
+| `POST /api/employees` | Create an employee with the first salary entry | 2 |
+| `GET /api/employees/{id}` | Employee detail with current salary and `version` | 2 |
+| `GET /api/employees/{id}/salary-entries` | History, newest first, each with a derived `endDate` and `current` and `scheduled` flags | 3 |
+| `POST /api/employees/{id}/salary-entries` | Add an entry. `currency` defaults to the preceding entry's. | 3 |
+| `GET /api/employees` | Directory: search, filter, sort, paginate | 5 |
+| `PUT /api/employees/{id}` | Edit the profile, including `terminationDate`. Needs `version`. | 6 |
+| `DELETE /api/employees/{id}` | Delete a mistaken record and its history. Needs `version`. | 6 |
+| `PUT /api/employees/{id}/salary-entries/{entryId}` | Edit an entry | 7 |
+| `DELETE /api/employees/{id}/salary-entries/{entryId}` | Delete an entry | 7 |
+| `GET /api/employees/{id}/salary-changes` | Change log, newest first | 7 |
+| `GET /api/insights` | Statistics per slice and currency (sketch below) | 8 |
+| `GET /api/insights/extremes` | Highest or lowest paid individuals (sketch below) | 8 |
+
+Slice 4 is the deterministic seed of 10,000 employees and has no endpoint. It comes before the directory and the insights, so both are built and measured against realistic volume.
+
+### Shapes (first slices)
+
+```
+POST /api/employees
+{ "fullName": "Asha Rao", "email": "asha.rao@acme.example", "hireDate": "2024-04-01",
+  "departmentId": 3, "jobTitleId": 12, "countryCode": "IN",
+  "initialSalary": { "effectiveDate": "2024-04-01", "amountMinor": 125000000, "currency": "INR" } }
+```
+
+`initialSalary.effectiveDate` is optional and defaults to the hire date. The response is `201` with a `Location` header and the employee detail:
+
+```
+{ "id": 10432, "fullName": "Asha Rao", "email": "asha.rao@acme.example",
+  "hireDate": "2024-04-01", "terminationDate": null, "status": "ACTIVE",
+  "department": { "id": 3, "name": "Engineering" },
+  "jobTitle": { "id": 12, "name": "Software Engineer" },
+  "country": { "code": "IN", "name": "India" },
+  "currentSalary": { "effectiveDate": "2024-04-01", "amountMinor": 125000000, "currency": "INR" },
+  "version": 0 }
+```
+
+### Directory filters and sort
+
+`GET /api/employees` accepts `q` (name or email contains), `countryCode`, `departmentId`, `jobTitleId`, `currency` and `status` (`ACTIVE` default, `FORMER`, `ALL`). Sort fields: `fullName`, `department`, `jobTitle`, `country`, `hireDate`, `salary`.
+
+The `currency` filter means the currency of the employee's **current salary**. **Sorting by `salary` requires a `currency` filter** and returns 400 without one. Comparing amounts across currencies would mix them.
+
+### Insights (sketch, finalized in its own slice)
+
+**Scope.** Insights cover **active employees by default**, using each employee's current salary as of today. The `status` filter can widen this to former employees or all. Historical snapshots, such as "who was employed on a past date", are out of scope. `asOf` is internal and is not a request parameter.
+
+- `GET /api/insights?dimension=COUNTRY|DEPARTMENT|JOB_TITLE|TITLE_COUNTRY|TENURE` plus the same filters as the directory. Returns one group per slice value and currency: `headcount`, `total`, `min`, `median`, `mean`, `max`, computed in the database with `percentile_cont`.
+- `GET /api/insights/extremes?order=HIGHEST|LOWEST&limit=N&currency=...` plus filters. A currency is required, for the same reason as sorting. Results are ordered by amount, then by employee ID, so ties are stable. At most `limit` employees are returned, even when that splits a tie. Each result includes its salary effective date.
+
+**Numeric contract.** `total`, `min` and `max` are exact integers in minor units. `median` and `mean` can be fractional, so they are returned as integer minor units rounded half up, calculated after casting to `numeric`. A test pins this rule with an even-sized group, such as middle values 100 and 101.
+
+**Tenure bands.** Under 1 year, 1 to under 3, 3 to under 5, 5 to under 10, and 10 or more. Tenure runs from the hire date to the earlier of today and the termination date, in completed years, so every employee falls into exactly one band. Final bands are confirmed in the insights slice.
+
+**Tests to write for the insights slice:** an empty group, a single employee, even and odd group sizes, several currencies, a future-dated entry, a former employee, an employee on exactly a tenure boundary, and a tie in the extremes.
+
 ## Still to write
 
-- Schema (employee, salary history, title, department, country and currency)
-- API shape
-- Insights approach (generic slice-by-dimension, per currency)
+- Insights approach in detail (the generic slice-by-dimension query)
+- Seed design: realistic and deterministic pay by title, country and tenure, across several countries and currencies
 - Local deployment plan (see below)
 
 ## Deployment

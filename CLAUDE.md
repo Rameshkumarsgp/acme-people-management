@@ -28,7 +28,7 @@ A take-home engineering assessment for Incubyte (a hiring process). Evaluators j
 - Insights are the core product. Employee CRUD and the directory are the supporting layer.
 - Insights slice salary by country, department, job title, title x country, tenure, and show highest/lowest paid individuals. Measures: headcount, total, min, median, mean, max.
 - **Every statistic is computed per currency. Never mix currencies.** No FX conversion in this cut.
-- Salary history: append-only dated entries. Current salary is the latest entry, and each entry's end date is derived from the next, so overlaps are impossible by design. A new entry's effective date must be later than the latest one.
+- Salary history: dated entries, each with its own currency. Current salary is the latest entry dated on or before today, so future-dated raises are allowed. End dates are derived from the next entry, so overlaps are impossible by design. Entries can be edited or deleted under date rules, and every change is logged. Rules are in `docs/requirements.md` and `docs/design.md`.
 - Salary is annual base pay in integer minor units. Never a float.
 - Titles and departments are standardized reference data.
 - Single HR persona, one shared login to protect the app (credentials from environment config, never hardcoded).
@@ -36,7 +36,7 @@ A take-home engineering assessment for Incubyte (a hiring process). Evaluators j
 
 ## Working assumptions (questions sent to Incubyte, awaiting reply)
 
-Annual base salary only; salary history kept; every employee has a salary; all employees current; per-currency reporting; single HR user; standardized titles and departments with no levels or grades. If a reply arrives, I will tell you and we update `docs/requirements.md` and the design.
+Annual base salary only; salary history kept; every employee has a salary; leavers kept with a termination date; per-currency reporting; single HR user; standardized titles and departments with no levels or grades. If a reply arrives, I will tell you and we update `docs/requirements.md` and the design.
 
 ## Repository layout
 
