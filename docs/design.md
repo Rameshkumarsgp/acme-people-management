@@ -227,7 +227,23 @@ Business rule codes: `DUPLICATE_SALARY_DATE`, `SALARY_BEFORE_HIRE_DATE`, `NO_CUR
 | `GET /api/insights` | Statistics per slice and currency (sketch below) | 8 |
 | `GET /api/insights/extremes` | Highest or lowest paid individuals (sketch below) | 8 |
 
-Slice 4 is the CSV loader and the deterministic seed generator. It has no endpoint and comes before the directory and the insights, so both are built and measured against realistic volume.
+### Slice plan
+
+Each slice delivers a working increment: the API, then its Angular screen, then tests for both. They are committed separately as `feat(api)` and `feat(ui)`, so a reviewer can follow each half. Slice 1 has no screen, because the reference lists only appear inside forms. Every screen handles loading, empty, validation and error states.
+
+| Slice | Backend | Frontend |
+|---|---|---|
+| 0 | Shared login, `GET /api/auth/me`, 401 without a challenge header | Login page, credentials in memory, request interceptor, auth guard |
+| 1 | Persistence foundation and the four reference lists | None |
+| 2 | Create employee with the first salary entry, employee detail | Create-employee form, employee detail page |
+| 3 | Salary history list, add an entry | History table on the detail page, add-change dialog, current and scheduled markers |
+| 4 | CSV loader and deterministic seed generator (no endpoint). It comes before the directory and the insights, so both are built and measured against realistic volume. | None |
+| 5 | Directory: search, filter, sort, paginate | Directory table with filters, status filter and currency-safe salary sort |
+| 6 | Edit employee, terminate, delete (both need `version`) | Edit form, terminate action, delete with confirmation |
+| 7 | Edit and delete a salary entry, change log | Edit and delete in the history table, change log view |
+| 8 | Insights and extremes | Dashboard: dimension, filters, statistics per currency, highest and lowest paid |
+
+The skill for the repeated backend pattern (endpoint plus database change) is written after slice 2, when a read and a write have both been built. A matching frontend skill follows once a few screens share a pattern.
 
 ### Shapes (first slices)
 
