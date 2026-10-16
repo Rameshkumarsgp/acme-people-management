@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup test test-backend test-frontend check secrets audit
+.PHONY: help setup test test-backend test-frontend test-e2e check secrets audit
 
 ROOT := $(shell git rev-parse --show-toplevel)
 NODE := . $(ROOT)/scripts/use-node.sh
@@ -20,6 +20,9 @@ test-backend: ## Backend: Checkstyle, SpotBugs, Error Prone and unit tests
 
 test-frontend: ## Frontend: format, lint and unit tests
 	$(NODE) && cd frontend && npm run format:check && npm run lint && npm run test
+
+test-e2e: ## Real-browser tests of the screens (installs Chromium once, not part of pre-commit)
+	$(NODE) && cd frontend && npx playwright install chromium && npm run e2e
 
 test: test-backend test-frontend ## Fast checks for both apps (what pre-commit runs)
 

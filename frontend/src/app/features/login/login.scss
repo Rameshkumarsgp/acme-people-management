@@ -1,0 +1,22 @@
+:host {
+  display: flex;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.error {
+  margin: 0;
+  color: var(--mat-sys-error);
+}

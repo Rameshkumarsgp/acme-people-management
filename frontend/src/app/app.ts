@@ -10,5 +10,4 @@ import { RouterOutlet } from '@angular/router';
 })
 export class App {
   protected readonly productName = 'ACME People Management';
-  protected readonly tagline = 'See how ACME pays people.';
 }

@@ -39,3 +39,9 @@ Dependency direction:
 - Derive with `computed` instead of storing the same fact twice.
 - No NgRx, feature modules, barrel files or generic helpers until a second user needs them.
 - Credentials stay in memory. Never log or persist them.
+
+**Testing** (the principles are in the root [CLAUDE.md](../CLAUDE.md#engineering-principles)):
+- Logic and component behavior are tested with Vitest in jsdom. They are fast and run in the pre-commit hook.
+- What jsdom cannot show needs a real browser: layout and CSS, the Enter key, a page refresh, browser storage, a phone width. Those are Playwright tests in `e2e/`, with the API stubbed inside each test. Run them with `npm run e2e` or `make test-e2e`. They are not part of pre-commit.
+- Prove a new test by breaking the code it guards and watching it fail.
+- User-facing text is hard-coded in English for now. For localization it moves to one central place, such as Angular's i18n, so a sentence is never copied between screens.

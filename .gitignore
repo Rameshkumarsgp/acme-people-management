@@ -14,6 +14,8 @@ build/
 
 # Angular / Node
 node_modules/
+test-results/
+playwright-report/
 dist/
 .angular/
 

@@ -3,3 +3,5 @@ dist
 .angular
 package-lock.json
 *.md
+test-results
+playwright-report

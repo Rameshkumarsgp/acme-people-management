@@ -1,0 +1,35 @@
+<!-- The labels and messages are hard-coded in English for now. For localization they should come from one central place, such as Angular's i18n. -->
+<mat-card class="login-card" appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>Sign in</mat-card-title>
+    <mat-card-subtitle>HR Manager login</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="signIn()" novalidate>
+      <mat-form-field appearance="outline">
+        <mat-label>Username</mat-label>
+        <input matInput formControlName="username" autocomplete="username" />
+        <mat-error>Enter your username.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input
+          matInput
+          type="password"
+          formControlName="password"
+          autocomplete="current-password"
+        />
+        <mat-error>Enter your password.</mat-error>
+      </mat-form-field>
+
+      @if (errorMessage(); as message) {
+        <p class="error" role="alert">{{ message }}</p>
+      }
+
+      <button mat-flat-button type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Signing in…' : 'Sign in' }}
+      </button>
+    </form>
+  </mat-card-content>
+</mat-card>

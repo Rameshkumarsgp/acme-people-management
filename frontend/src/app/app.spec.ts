@@ -1,18 +1,30 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { App } from './app';
 
 describe('App', () => {
-  it('shows the product name and tagline in the toolbar', async () => {
-    // given
-    await TestBed.configureTestingModule({ imports: [App] }).compileComponents();
-
-    // when
+  async function render(): Promise<HTMLElement> {
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [provideRouter([])],
+    }).compileComponents();
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
+    return fixture.nativeElement as HTMLElement;
+  }
 
-    // then
-    const page = fixture.nativeElement as HTMLElement;
-    expect(page.querySelector('h1')?.textContent).toContain('ACME People Management');
-    expect(page.querySelector('.tagline')?.textContent).toContain('See how ACME pays people.');
+  it('shows the product name in the toolbar', async () => {
+    const page = await render();
+
+    expect(page.querySelector('mat-toolbar h1')?.textContent?.trim()).toBe(
+      'ACME People Management',
+    );
+  });
+
+  it('shows no tagline next to the product name', async () => {
+    const page = await render();
+
+    expect(page.querySelector('.tagline')).toBeNull();
+    expect(page.textContent).not.toContain('See how ACME pays people');
   });
 });
