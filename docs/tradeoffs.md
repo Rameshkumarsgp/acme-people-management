@@ -70,6 +70,6 @@ Decisions where we chose one cost over another, with the cost stated. Performanc
 
 **Safeguards.** Authenticated by default. Fail-fast startup without credentials. The 401 carries no `WWW-Authenticate` challenge, as defense in depth against browser credential caching. After 5 failed attempts within 60 seconds the API answers 429 with `Retry-After`, and credentials are not checked during that window, so a correct guess cannot slip through.
 
-**Upgrade path.** Short-lived tokens issued by a login endpoint, so the password is sent once. Individual accounts and roles, which also enable a "who changed it" trail (question 6 in `requirements.md`). Then a real identity provider.
+**Upgrade path.** Short-lived tokens issued by a login endpoint, so the password is sent once. Individual accounts and roles, which also enable a "who changed it" trail (question 6 in `requirements.md`). Then a real identity provider, used as a service and not built here, because writing our own login is where most security mistakes happen. Credentials would move from environment variables to a secrets vault: environment variables can be read by anyone with access to the host or container and can appear in process listings and crash dumps, while a vault controls and logs access and supports rotation.
 
 **Related.** [design.md](design.md), the API conventions table.
