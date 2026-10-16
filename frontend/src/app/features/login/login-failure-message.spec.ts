@@ -31,6 +31,12 @@ describe('describeLoginFailure', () => {
     );
   });
 
+  it('tells the user the server took too long', () => {
+    expect(describeLoginFailure({ kind: 'timeout' })).toBe(
+      'The server took too long to respond. Try again.',
+    );
+  });
+
   it('gives a generic message for an unexpected failure', () => {
     expect(describeLoginFailure({ kind: 'unexpected' })).toBe('Something went wrong. Try again.');
   });

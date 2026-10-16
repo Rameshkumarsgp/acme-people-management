@@ -14,6 +14,8 @@ export function describeLoginFailure(failure: LoginFailure): string {
       return `Too many failed attempts. Try again in ${describeWait(failure.retryAfterSeconds)}.`;
     case 'network-error':
       return 'Cannot reach the server. Check your connection and try again.';
+    case 'timeout':
+      return 'The server took too long to respond. Try again.';
     case 'unexpected':
       return 'Something went wrong. Try again.';
   }

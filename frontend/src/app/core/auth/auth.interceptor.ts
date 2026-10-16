@@ -3,6 +3,7 @@ import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { API_BASE_URL } from '../api/api-base-url';
+import { isApiCall } from '../api/is-api-call';
 import { AuthService } from './auth.service';
 
 const UNAUTHORIZED = 401;
@@ -36,7 +37,3 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
     }),
   );
 };
-
-function isApiCall(url: string, apiBaseUrl: string): boolean {
-  return url === apiBaseUrl || url.startsWith(`${apiBaseUrl}/`);
-}

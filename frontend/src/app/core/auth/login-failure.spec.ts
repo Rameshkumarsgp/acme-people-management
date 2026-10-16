@@ -40,6 +40,14 @@ describe('toLoginFailure', () => {
     expect(toLoginFailure(new HttpErrorResponse({ status: 0 }))).toEqual({ kind: 'network-error' });
   });
 
+  it('treats a 408, which the browser side uses for its own timeout, as a timeout', () => {
+    expect(toLoginFailure(new HttpErrorResponse({ status: 408 }))).toEqual({ kind: 'timeout' });
+  });
+
+  it('treats a 504 from a proxy in front of a slow server as a timeout', () => {
+    expect(toLoginFailure(new HttpErrorResponse({ status: 504 }))).toEqual({ kind: 'timeout' });
+  });
+
   it('treats any other status as unexpected', () => {
     expect(toLoginFailure(new HttpErrorResponse({ status: 500 }))).toEqual({ kind: 'unexpected' });
   });

@@ -86,6 +86,20 @@ test('shows how long to wait after too many attempts', async ({ page }) => {
   );
 });
 
+test('tells the user when the server is too slow to answer', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({ status: 504, json: { status: 504 } }),
+  );
+  await page.goto('/login');
+
+  await signIn(page, 'hr', 's3cret');
+
+  await expect(page.getByRole('alert')).toHaveText(
+    'The server took too long to respond. Try again.',
+  );
+  await expect(page).toHaveURL(/\/login$/);
+});
+
 test('asks for the missing fields without calling the server', async ({ page }) => {
   const apiCalls: string[] = [];
   page.on('request', (request) => {
