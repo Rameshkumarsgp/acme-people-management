@@ -73,3 +73,15 @@ Decisions where we chose one cost over another, with the cost stated. Performanc
 **Upgrade path.** Short-lived tokens issued by a login endpoint, so the password is sent once. Individual accounts and roles, which also enable a "who changed it" trail (question 6 in `requirements.md`). Then a real identity provider, used as a service and not built here, because writing our own login is where most security mistakes happen. Credentials would move from environment variables to a secrets vault: environment variables can be read by anyone with access to the host or container and can appear in process listings and crash dumps, while a vault controls and logs access and supports rotation.
 
 **Related.** [design.md](design.md), the API conventions table.
+
+## Frontend configuration is fixed at build time
+
+**Decision.** The API address and the request timeout live in `environment.ts` and are compiled into the app.
+
+**Why.** It is the simplest typed option, and behind nginx the address is a relative `/api` that rarely changes. A runtime mechanism would be overbuilding for one HR user and one deployment.
+
+**What it costs.** Changing a value means rebuilding the app, and a different environment needs its own build, so the artifact that was tested is not the one that ships.
+
+**Upgrade path.** Load a small `config.json` before the app starts, written by the container from its environment variables, with built-in defaults if the file is missing. That gives one build for every environment. A central configuration service would also allow per-endpoint timeouts and audited changes without a redeploy, at the price of a startup dependency.
+
+**Related.** `frontend/src/environments/environment.ts`.
