@@ -65,6 +65,19 @@ Monorepo:
 | Unit tests | JUnit and Mockito. No database or Docker |
 | Integration tests | PostgreSQL via Testcontainers: migrations, constraints, queries, percentile calculations |
 
+## Engineering principles
+
+Apply these to all code, backend and frontend. Before suggesting a commit, review the change against them and fix the findings.
+
+- **YAGNI:** build only what the current slice and the approved design need. No setting, parameter, interface or abstraction for a later slice. Add it when the slice that needs it arrives, with its test.
+- **KISS:** the simplest code that passes the tests. Code cleverer than the problem needs is simplified, or explained in a comment.
+- **DRY:** each decision lives in one place, especially security and business rules. Derive values instead of passing redundant ones. Repeating a trivial line is fine. Repeating a decision is not.
+- **Single responsibility and command-query separation:** a class or function has one reason to change. A function that answers a question does not change state, and one that changes state says so in its name.
+- **Dependency inversion:** logic depends on injected collaborators, never on static time, randomness or global state. Inject a `Clock`, do not call `Instant.now()`.
+- **Open/closed, Liskov and interface segregation:** apply them when a second concrete case exists. No interface for a single implementation.
+- **Clean code:** names say what and in which unit. Small functions. Comments explain why, not what. Never put secrets in `toString()`, logs or error messages. Tests assert behavior on real objects, with mocks only at a real boundary.
+- **Measure, do not assume:** a performance claim needs a before and after number. Record it in `docs/tradeoffs.md`.
+
 ## Per-app rules
 
 Design rules and coding conventions live next to the code and load when working in that folder:

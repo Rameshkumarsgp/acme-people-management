@@ -32,3 +32,11 @@ Package-by-feature under `com.acme.peoplemanagement`: one package per feature, p
 - Prefer collections over arrays.
 - Avoid circular dependencies between feature packages.
 - Keep dependencies current and check for vulnerable ones.
+
+**Applying the engineering principles in Java** (the principles are in the root [CLAUDE.md](../CLAUDE.md#engineering-principles)):
+- Records are for values and DTOs. A record that holds a secret overrides `toString()` to leave it out.
+- Constructor injection with `final` fields. An interface only for a real boundary or a second implementation.
+- A method named like a question (`isBlocked`, `find...`) never changes state.
+- One class decides each rule that several callers need, such as who counts as the same client, or the shape of an error response.
+- Every error uses one problem+json writer, and the title comes from the status.
+- A configuration property exists only once something reads it.

@@ -32,3 +32,10 @@ Dependency direction:
 - Prefer `class` and `style` bindings over `NgClass` and `NgStyle`.
 - Name handlers by what they do (`saveEmployee()`), not by the event (`handleClick()`).
 - Keep lifecycle hooks thin and implement the lifecycle interfaces.
+
+**Applying the engineering principles in Angular** (the principles are in the root [CLAUDE.md](../CLAUDE.md#engineering-principles)):
+- A component does one job. Logic that is reused or tested on its own moves to a service or a pure function.
+- Each decision lives in one place: the API base URL, the auth header, error mapping and money formatting sit in `core/` or `shared/`, never repeated in components. Components never build URLs or headers.
+- Derive with `computed` instead of storing the same fact twice.
+- No NgRx, feature modules, barrel files or generic helpers until a second user needs them.
+- Credentials stay in memory. Never log or persist them.
