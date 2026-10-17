@@ -40,3 +40,4 @@ Package-by-feature under `com.acme.peoplemanagement`: one package per feature, p
 - One class decides each rule that several callers need, such as who counts as the same client, or the shape of an error response.
 - Every error uses one problem+json writer, and the title comes from the status.
 - A configuration property exists only once something reads it.
+- Two kinds of test, separated by a JUnit tag. Fast tests (unit tests, and web slices with `@WebMvcTest`) need no Docker and run in pre-commit. Database tests use `@IntegrationTest`, which starts the app against PostgreSQL in Docker through Testcontainers, and run with `./gradlew integrationTest` and in pre-push. Tests use the main `application.properties` plus `application-test.properties`, so they check the real configuration.

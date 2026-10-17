@@ -1,0 +1,23 @@
+# Local run. PostgreSQL only for now. The API and the web container join in a later slice.
+# Needs a .env file, see .env.example. Start with: docker compose up -d --wait
+services:
+  postgres:
+    # The tests use the same major version, see TestcontainersConfiguration.
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${ACME_DB_NAME:?set ACME_DB_NAME in .env}
+      POSTGRES_USER: ${ACME_DB_USER:?set ACME_DB_USER in .env}
+      POSTGRES_PASSWORD: ${ACME_DB_PASSWORD:?set ACME_DB_PASSWORD in .env}
+    ports:
+      # Localhost only. A bare "5432:5432" would publish the database on every network interface.
+      - "127.0.0.1:${ACME_DB_PORT:-5432}:5432"
+    volumes:
+      - acme-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  acme-postgres-data:

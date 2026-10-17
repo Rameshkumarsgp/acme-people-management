@@ -1,6 +1,6 @@
 #!/bin/sh
 # Everything the fast pre-commit skips: typecheck, Knip and a production build.
-# Database integration tests (Testcontainers) join this once they exist.
+# Includes the database integration tests (Testcontainers), so Docker must be running.
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT" || exit 1
 echo "pre-push: full check"

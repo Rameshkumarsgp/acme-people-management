@@ -1,0 +1,5 @@
+# Every SQL file in changes/ is applied in file name order. The master file is the only YAML.
+databaseChangeLog:
+  - includeAll:
+      path: db/changelog/changes/
+      errorIfMissingOrEmpty: false

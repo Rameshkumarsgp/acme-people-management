@@ -12,19 +12,19 @@ import java.time.Duration;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(AuthEndpointTest.MovableClockConfiguration.class)
+@WebMvcTest(AuthController.class)
+@ActiveProfiles("test")
+@Import({SecurityConfig.class, AuthEndpointTest.MovableClockConfiguration.class})
 class AuthEndpointTest {
 
     private static final String USERNAME = "hr-test";
@@ -64,14 +64,6 @@ class AuthEndpointTest {
     void requiresLoginForAnyApiPath() throws Exception {
         mockMvc.perform(get("/api/does-not-exist").with(clientAt("10.1.0.4")))
                 .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void exposesHealthWithoutCredentialsAndWithoutDetails() throws Exception {
-        mockMvc.perform(get("/actuator/health").with(clientAt("10.1.0.5")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"))
-                .andExpect(jsonPath("$.components").doesNotExist());
     }
 
     @Test

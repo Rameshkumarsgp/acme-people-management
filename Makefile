@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup test test-backend test-frontend test-e2e check secrets audit
+.PHONY: help setup test test-backend test-integration test-frontend test-e2e check secrets audit
 
 ROOT := $(shell git rev-parse --show-toplevel)
 NODE := . $(ROOT)/scripts/use-node.sh
@@ -15,8 +15,11 @@ setup: ## Install git hooks and frontend dependencies (run once after cloning)
 	$(NODE) && cd frontend && npm ci
 	@echo "Git hooks active: pre-commit, commit-msg, pre-push."
 
-test-backend: ## Backend: Checkstyle, SpotBugs, Error Prone and unit tests
-	cd backend && ./gradlew check --quiet --console=plain --warning-mode=none
+test-backend: ## Backend: Checkstyle, SpotBugs, Error Prone and the fast tests (no Docker)
+	cd backend && ./gradlew check -x integrationTest --quiet --console=plain --warning-mode=none
+
+test-integration: ## Backend database tests against PostgreSQL in Docker (Docker must be running)
+	cd backend && ./gradlew integrationTest --quiet --console=plain --warning-mode=none
 
 test-frontend: ## Frontend: format, lint and unit tests
 	$(NODE) && cd frontend && npm run format:check && npm run lint && npm run test
@@ -26,7 +29,7 @@ test-e2e: ## Real-browser tests of the screens (installs Chromium once, not part
 
 test: test-backend test-frontend ## Fast checks for both apps (what pre-commit runs)
 
-check: test ## Everything pre-push runs: fast checks plus typecheck, Knip and build
+check: test test-integration ## Everything pre-push runs: fast checks, database tests, typecheck, Knip and build
 	$(NODE) && cd frontend && npm run typecheck && npm run knip && npm run build
 
 secrets: ## Scan the working tree and history for secrets

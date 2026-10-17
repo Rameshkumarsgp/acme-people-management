@@ -9,7 +9,7 @@ Status: Draft. Architecture decisions, the data model and the API are written. R
 | Frontend framework | Modern Angular (not AngularJS) | AngularJS is end-of-life |
 | Backend | Spring Boot, Java | Required by the brief |
 | Build tool | Gradle | Project preference |
-| Database | PostgreSQL (see [ADR 0001](architecture/adr/0001-database.md)) | `percentile_cont` for medians, real-engine tests |
+| Database | PostgreSQL 17 (see [ADR 0001](architecture/adr/0001-database.md)). The compose file and the tests use the same major version. | `percentile_cont` for medians, real-engine tests |
 | Migrations | Liquibase | Project preference |
 | UI component library | Angular Material | Official, accessible, table with server-side sort and pagination |
 | Repo structure | Monorepo | See below |
@@ -19,7 +19,7 @@ Status: Draft. Architecture decisions, the data model and the API are written. R
 ## Testing approach
 
 - **Unit tests:** JUnit and Mockito. No database or Docker. They cover salary history rules, validation, and service logic, and run in milliseconds.
-- **Database integration tests:** PostgreSQL with Testcontainers. They verify migrations, constraints, queries, and percentile calculations. They also verify that deleting an employee removes their salary entries and change rows and leaves other employees untouched, that deleting a single salary entry keeps its change rows, and that a salary change and its change-log row succeed or fail together.
+- **Database integration tests:** PostgreSQL with Testcontainers, tagged `integration`, run by `./gradlew integrationTest` and in pre-push, never in pre-commit. They verify migrations, constraints, queries, and percentile calculations. They also verify that deleting an employee removes their salary entries and change rows and leaves other employees untouched, that deleting a single salary entry keeps its change rows, and that a salary change and its change-log row succeed or fail together.
 
 ## Architecture decisions and alternatives
 
