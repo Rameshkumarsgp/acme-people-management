@@ -2,4 +2,3 @@
 databaseChangeLog:
   - includeAll:
       path: db/changelog/changes/
-      errorIfMissingOrEmpty: false

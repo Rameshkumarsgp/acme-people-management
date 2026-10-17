@@ -129,7 +129,7 @@ erDiagram
 
 | Table | Columns | Constraints and indexes |
 |---|---|---|
-| `currency` | `code` (ISO 4217), `minor_unit_digits` | PK `code`. Check `minor_unit_digits >= 0`. |
+| `currency` | `code` (ISO 4217), `minor_unit_digits` | PK `code`. Check `code` is three capital letters. Check `minor_unit_digits >= 0`. |
 | `country` | `code` (ISO 3166 alpha-2), `name` | PK `code`. |
 | `department` | `id`, `name` | PK `id`. Unique `name`. |
 | `job_title` | `id`, `name` | PK `id`. Unique `name`. No levels or grades. |
