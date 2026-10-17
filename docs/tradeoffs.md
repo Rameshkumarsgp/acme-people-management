@@ -85,3 +85,15 @@ Decisions where we chose one cost over another, with the cost stated. Performanc
 **Upgrade path.** Load a small `config.json` before the app starts, written by the container from its environment variables, with built-in defaults if the file is missing. That gives one build for every environment. A central configuration service would also allow per-endpoint timeouts and audited changes without a redeploy, at the price of a startup dependency.
 
 **Related.** `frontend/src/environments/environment.ts`.
+
+## Job levels and grades are not modelled
+
+**Decision.** Job titles are a standardized list with no levels or grades. This follows the working assumption in `requirements.md` (question 7, awaiting Incubyte's reply). Titles such as "Senior" and "Junior" are not used, because they would be levels in disguise.
+
+**Why.** The brief names country, department, title and tenure as the slices, and whether ACME has a level structure is exactly what we asked. Inventing names and an order for levels would guess at their business, and it touches four slices: a reference table, an employee field, a directory filter and an insights dimension.
+
+**What it costs.** "Same role" comparisons mix seniority. The median for a software engineer in one country covers someone hired last month and someone with fifteen years. Tenure as a slice partly compensates, but tenure is not level.
+
+**Upgrade path.** Add a standardized `job_level` reference table and a nullable `job_level_id` on the employee. It is additive: existing rows stay valid, and the directory filter and an insights dimension follow. Nothing built before that point has to change.
+
+**Related.** [requirements.md](requirements.md), the open question on titles and departments.
