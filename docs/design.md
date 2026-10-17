@@ -130,7 +130,7 @@ erDiagram
 | Table | Columns | Constraints and indexes |
 |---|---|---|
 | `currency` | `code` (ISO 4217), `minor_unit_digits` | PK `code`. Check `code` is three capital letters. Check `minor_unit_digits >= 0`. |
-| `country` | `code` (ISO 3166 alpha-2), `name` | PK `code`. |
+| `country` | `code` (ISO 3166 alpha-2), `name` | PK `code`. Check `code` is two capital letters. Check `name` is not blank. |
 | `department` | `id`, `name` | PK `id`. Unique `name`. |
 | `job_title` | `id`, `name` | PK `id`. Unique `name`. No levels or grades. |
 | `employee` | `id` (`BIGINT` identity), `full_name`, `email`, `hire_date`, `termination_date` (nullable), `department_id`, `job_title_id`, `country_code`, `version` | PK `id`. FKs to the three reference tables. Unique on `lower(email)`. Check `termination_date >= hire_date`. Indexes on `country_code`, `department_id`, `job_title_id`. `version` is the optimistic-lock column. |

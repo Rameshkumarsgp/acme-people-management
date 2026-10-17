@@ -12,15 +12,25 @@ import org.springframework.web.bind.annotation.RestController;
 class ReferenceController {
 
     private final CurrencyRepository currencyRepository;
+    private final CountryRepository countryRepository;
 
-    ReferenceController(final CurrencyRepository currencyRepository) {
+    ReferenceController(
+            final CurrencyRepository currencyRepository, final CountryRepository countryRepository) {
         this.currencyRepository = currencyRepository;
+        this.countryRepository = countryRepository;
     }
 
     @GetMapping("/currencies")
     List<CurrencyResponse> currencies() {
         return currencyRepository.findAll(Sort.by("code")).stream()
                 .map(currency -> new CurrencyResponse(currency.code(), currency.minorUnitDigits()))
+                .toList();
+    }
+
+    @GetMapping("/countries")
+    List<CountryResponse> countries() {
+        return countryRepository.findAll(Sort.by("name")).stream()
+                .map(country -> new CountryResponse(country.code(), country.name()))
                 .toList();
     }
 }
