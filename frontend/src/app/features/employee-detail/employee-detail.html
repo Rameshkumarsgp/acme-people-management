@@ -1,0 +1,48 @@
+<!-- The labels and messages are hard-coded in English for now. For localization they should come from one central place, such as Angular's i18n. -->
+<section class="detail">
+  @switch (loadState()) {
+    @case ('loading') {
+      <p>Loading…</p>
+    }
+    @case ('not-found') {
+      <p role="alert">No employee with this ID.</p>
+      <a mat-stroked-button routerLink="/">Back to home</a>
+    }
+    @case ('failed') {
+      <p role="alert">Could not load the employee. Check your connection and try again.</p>
+      <button mat-stroked-button type="button" (click)="retry()">Try again</button>
+    }
+    @case ('loaded') {
+      @if (employee(); as person) {
+        <mat-card appearance="outlined">
+          <mat-card-header>
+            <mat-card-title>{{ person.fullName }}</mat-card-title>
+            <mat-card-subtitle>{{
+              person.status === 'ACTIVE' ? 'Active' : 'Former'
+            }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <dl>
+              <dt>Email</dt>
+              <dd>{{ person.email }}</dd>
+              <dt>Department</dt>
+              <dd>{{ person.department.name }}</dd>
+              <dt>Job title</dt>
+              <dd>{{ person.jobTitle.name }}</dd>
+              <dt>Country</dt>
+              <dd>{{ person.country.name }}</dd>
+              <dt>Hire date</dt>
+              <dd>{{ person.hireDate }}</dd>
+              <dt>Current salary (annual)</dt>
+              <dd>
+                {{ salaryText() }}
+                <span class="note">since {{ person.currentSalary.effectiveDate }}</span>
+              </dd>
+            </dl>
+          </mat-card-content>
+        </mat-card>
+        <a mat-stroked-button routerLink="/">Back to home</a>
+      }
+    }
+  }
+</section>

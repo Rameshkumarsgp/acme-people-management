@@ -37,6 +37,21 @@ describe('routes', () => {
     expect(TestBed.inject(Router).url).toBe('/login');
   });
 
+  it('sends a visitor who is not logged in from an employee page to the login page', async () => {
+    await RouterTestingHarness.create('/employees/10432');
+
+    expect(TestBed.inject(Router).url).toBe('/login');
+  });
+
+  it('lets a logged-in user open an employee page', async () => {
+    await logIn();
+
+    await RouterTestingHarness.create('/employees/10432');
+
+    expect(TestBed.inject(Router).url).toBe('/employees/10432');
+    TestBed.inject(HttpTestingController).expectOne('/api/employees/10432');
+  });
+
   it('lets a logged-in user reach the home page', async () => {
     await logIn();
 

@@ -1,0 +1,23 @@
+.detail {
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1.5rem;
+}
+
+dt {
+  font-weight: 500;
+}
+
+dd {
+  margin: 0;
+}
+
+.note {
+  opacity: 0.7;
+}
