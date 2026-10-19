@@ -11,12 +11,12 @@ Status: Proposed (awaiting approval)
 
 ## Options considered
 
-| Option | Median in SQL | Prod/test parity | Notes |
-|---|---|---|---|
-| **PostgreSQL** | `percentile_cont` built in | Same engine in tests via Testcontainers | Needs Docker for tests and a hosted instance |
-| SQLite | No built-in median; needs window-function workaround | Same engine, no Docker | Single writer, weaker Spring/Liquibase support |
-| H2 | `PERCENTILE_CONT` supported | Different engine from prod if prod is Postgres | Fast tests, but proves little about prod SQL |
-| MySQL / MariaDB | MySQL 8 has none; MariaDB only as a window function | Same engine | Median needs workarounds |
+| Option          | Median in SQL                                        | Prod/test parity                               | Notes                                          |
+| --------------- | ---------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------- |
+| **PostgreSQL**  | `percentile_cont` built in                           | Same engine in tests via Testcontainers        | Needs Docker for tests and a hosted instance   |
+| SQLite          | No built-in median; needs window-function workaround | Same engine, no Docker                         | Single writer, weaker Spring/Liquibase support |
+| H2              | `PERCENTILE_CONT` supported                          | Different engine from prod if prod is Postgres | Fast tests, but proves little about prod SQL   |
+| MySQL / MariaDB | MySQL 8 has none; MariaDB only as a window function  | Same engine                                    | Median needs workarounds                       |
 
 ## Decision (proposed)
 
