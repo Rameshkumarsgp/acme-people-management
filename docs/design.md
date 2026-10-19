@@ -131,8 +131,8 @@ erDiagram
 |---|---|---|
 | `currency` | `code` (ISO 4217), `minor_unit_digits` | PK `code`. Check `code` is three capital letters. Check `minor_unit_digits >= 0`. |
 | `country` | `code` (ISO 3166 alpha-2), `name` | PK `code`. Check `code` is two capital letters. Check `name` is not blank. |
-| `department` | `id`, `name` | PK `id`. Unique `name`. |
-| `job_title` | `id`, `name` | PK `id`. Unique `name`. No levels or grades. |
+| `department` | `id`, `name` | PK `id`. Unique on `lower(name)`, so a name differing only in case is a duplicate. Check `name` is not blank. |
+| `job_title` | `id`, `name` | PK `id`. Unique on `lower(name)`. Check `name` is not blank. No levels or grades. |
 | `employee` | `id` (`BIGINT` identity), `full_name`, `email`, `hire_date`, `termination_date` (nullable), `department_id`, `job_title_id`, `country_code`, `version` | PK `id`. FKs to the three reference tables. Unique on `lower(email)`. Check `termination_date >= hire_date`. Indexes on `country_code`, `department_id`, `job_title_id`. `version` is the optimistic-lock column. |
 | `salary_entry` | `id` (identity), `employee_id`, `effective_date`, `amount_minor` (`BIGINT`), `currency_code` | PK `id`. FK `employee_id` `ON DELETE CASCADE`. FK `currency_code`. Unique `(employee_id, effective_date)`. Check `amount_minor BETWEEN 1 AND 9007199254740991`. The upper bound is the largest integer that a `double precision` and a JavaScript number both hold exactly, so a single amount is exact in both. Sums can exceed it, see the numeric contract under Insights. **No end-date column**: it is derived from the next entry. |
 | `salary_entry_change` | `id`, `employee_id`, `entry_id`, `action` (`ADDED`, `EDITED`, `DELETED`), `old_effective_date`, `old_amount_minor`, `old_currency_code`, `new_effective_date`, `new_amount_minor`, `new_currency_code`, `changed_at` (`TIMESTAMPTZ`) | PK `id`. FK `employee_id` `ON DELETE CASCADE`. `entry_id` is deliberately not a FK: the entry may be gone. Index `(employee_id, changed_at DESC)`. |
