@@ -20,6 +20,6 @@ import org.springframework.test.context.ActiveProfiles;
 @Tag("integration")
 @ActiveProfiles("test")
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, FixedClockConfiguration.class})
 public @interface IntegrationTest {
 }
