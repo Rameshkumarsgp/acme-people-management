@@ -4,4 +4,9 @@
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
         <Class name="~com\.acme\.peoplemanagement\..*(Dto|Properties)"/>
     </Match>
+    <!-- A test helper that keeps the JdbcTemplate it was given, as any service keeps its collaborators -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+        <Class name="com.acme.peoplemanagement.support.TestEmployees"/>
+    </Match>
 </FindBugsFilter>
