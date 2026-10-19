@@ -1,5 +1,6 @@
 <section>
   <h2>Welcome, {{ username() }}</h2>
   <p>The employee directory and the salary insights will appear here.</p>
+  <a mat-flat-button routerLink="/employees/new">New employee</a>
   <button mat-stroked-button type="button" (click)="signOut()">Sign out</button>
 </section>

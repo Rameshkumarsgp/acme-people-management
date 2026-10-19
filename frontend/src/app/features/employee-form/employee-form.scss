@@ -1,0 +1,15 @@
+.form-card {
+  max-width: 36rem;
+  margin: 2rem auto;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-top: 1rem;
+}
+
+.error {
+  color: var(--mat-sys-error);
+}

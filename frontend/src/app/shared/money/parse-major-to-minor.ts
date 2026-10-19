@@ -3,7 +3,7 @@ const MAX_AMOUNT_MINOR = 9007199254740991n;
 /** Digits with optional thousands groups, then an optional fraction. No sign, no exponent. */
 const AMOUNT_PATTERN = /^(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/;
 
-type AmountError = 'not-a-number' | 'too-many-decimals' | 'not-positive' | 'too-large';
+export type AmountError = 'not-a-number' | 'too-many-decimals' | 'not-positive' | 'too-large';
 
 export type ParsedAmount = { ok: true; amountMinor: number } | { ok: false; reason: AmountError };
 

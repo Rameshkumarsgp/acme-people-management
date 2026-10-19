@@ -43,6 +43,21 @@ describe('routes', () => {
     expect(TestBed.inject(Router).url).toBe('/login');
   });
 
+  it('sends a visitor who is not logged in from the new employee page to the login page', async () => {
+    await RouterTestingHarness.create('/employees/new');
+
+    expect(TestBed.inject(Router).url).toBe('/login');
+  });
+
+  it('lets a logged-in user open the new employee form', async () => {
+    await logIn();
+
+    const harness = await RouterTestingHarness.create('/employees/new');
+
+    expect(TestBed.inject(Router).url).toBe('/employees/new');
+    expect(harness.routeNativeElement?.textContent).toContain('New employee');
+  });
+
   it('lets a logged-in user open an employee page', async () => {
     await logIn();
 

@@ -1,11 +1,11 @@
 import { Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 
 @Component({
   selector: 'app-home',
-  imports: [MatButtonModule],
+  imports: [MatButtonModule, RouterLink],
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })

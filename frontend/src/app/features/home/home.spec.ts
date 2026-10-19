@@ -32,6 +32,12 @@ describe('Home', () => {
     expect(page.textContent).toContain('Welcome, hr');
   });
 
+  it('links to the new employee form', () => {
+    const link = page.querySelector<HTMLAnchorElement>('a[href="/employees/new"]');
+
+    expect(link?.textContent).toContain('New employee');
+  });
+
   it('ends the session and returns to the login page on sign out', () => {
     page.querySelector<HTMLButtonElement>('button')!.click();
 
