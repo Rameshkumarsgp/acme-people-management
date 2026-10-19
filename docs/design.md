@@ -114,6 +114,7 @@ Settled while designing the data model and API. Each was debated against alterna
 | 9 | No salary entry is dated after the termination date. | A leaver's last entry means what they were paid when they left. |
 | 10 | The termination date is the **last employed day**. An employee is active on that date and former after it. | One meaning, used by the directory, the status filter and the insights. It also matches rule 9, which allows an entry dated on the termination date. |
 | 11 | Migration from Excel is a one-time **CSV load from the command line**, through the same validation as typed data. The seed is the same loader fed by a generator. | HR will not retype 10,000 employees, but an upload screen is a feature of its own. Excel saves as CSV, so no spreadsheet parsing is needed. |
+| 12 | Features read each other's data through public lookups and services, never through entities or repositories. `employee` stores plain keys for the department, job title and country, and `reference` exposes a public `ReferenceLookup`. `salary` stores a plain `employeeId`. | Keeps entities and repositories private to their package, so no feature can change another's rows or depend on how they are stored. The foreign keys still protect the data. |
 
 ## Data model
 
