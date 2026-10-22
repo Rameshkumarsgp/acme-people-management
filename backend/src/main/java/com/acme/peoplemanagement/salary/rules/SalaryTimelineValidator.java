@@ -1,7 +1,9 @@
 package com.acme.peoplemanagement.salary.rules;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The rules a salary timeline must satisfy. Plain Java with no Spring or database, so the tests run in
@@ -14,7 +16,18 @@ public final class SalaryTimelineValidator {
 
     public void validate(final LocalDate hireDate, final List<TimelineEntry> timeline, final LocalDate today) {
         rejectEntriesBeforeHireDate(hireDate, timeline);
+        rejectDuplicateDates(timeline);
         requireCurrentSalary(timeline, today);
+    }
+
+    private static void rejectDuplicateDates(final List<TimelineEntry> timeline) {
+        final Set<LocalDate> seen = new HashSet<>();
+        for (final TimelineEntry entry : timeline) {
+            if (!seen.add(entry.effectiveDate())) {
+                throw new SalaryRuleViolation(SalaryRuleCode.DUPLICATE_SALARY_DATE,
+                        "There is already a salary effective on " + entry.effectiveDate() + ".");
+            }
+        }
     }
 
     private static void requireCurrentSalary(final List<TimelineEntry> timeline, final LocalDate today) {

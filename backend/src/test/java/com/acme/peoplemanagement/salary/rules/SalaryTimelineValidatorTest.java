@@ -61,6 +61,24 @@ class SalaryTimelineValidatorTest {
                 .hasMessageContaining("hire date");
     }
 
+    @Test
+    void rejectsTwoEntriesOnTheSameDate() {
+        assertRejectedWith(SalaryRuleCode.DUPLICATE_SALARY_DATE, HIRE_DATE,
+                List.of(entryOn(HIRE_DATE), entryOn(HIRE_DATE)));
+    }
+
+    @Test
+    void acceptsEntriesOnDifferentDates() {
+        assertAccepted(HIRE_DATE, List.of(entryOn(HIRE_DATE), entryOn(HIRE_DATE.plusDays(1))));
+    }
+
+    @Test
+    void namesTheDateThatIsTaken() {
+        assertThatThrownBy(() -> validator.validate(HIRE_DATE,
+                List.of(entryOn(HIRE_DATE), entryOn(HIRE_DATE)), TODAY))
+                .hasMessageContaining("2024-04-01");
+    }
+
     private void assertAccepted(final LocalDate hireDate, final List<TimelineEntry> timeline) {
         assertThatCode(() -> validator.validate(hireDate, timeline, TODAY)).doesNotThrowAnyException();
     }
