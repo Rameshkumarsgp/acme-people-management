@@ -2,6 +2,8 @@ package com.acme.peoplemanagement.employee.api;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -99,6 +101,27 @@ class EmployeeEndpointTest {
         postEmployee(VALID_BODY.replace("125000000", "9007199254740992"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("initialSalary.amountMinor"));
+    }
+
+    @Test
+    void rejectsAFractionalAmountInsteadOfDroppingTheFraction() throws Exception {
+        given(employeeService.create(any())).willReturn(sampleEmployee());
+
+        postEmployee(VALID_BODY.replace("125000000", "100.9"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+
+        verify(employeeService, never()).create(any());
+    }
+
+    @Test
+    void rejectsAFractionalIdInsteadOfPickingTheWholePart() throws Exception {
+        given(employeeService.create(any())).willReturn(sampleEmployee());
+
+        postEmployee(VALID_BODY.replace("\"departmentId\": 3", "\"departmentId\": 3.9"))
+                .andExpect(status().isBadRequest());
+
+        verify(employeeService, never()).create(any());
     }
 
     @Test
