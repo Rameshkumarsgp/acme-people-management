@@ -46,6 +46,10 @@ class SalaryEntry {
         this.currencyCode = entry.salary().currencyCode();
     }
 
+    long id() {
+        return id;
+    }
+
     TimelineEntry toTimelineEntry() {
         return new TimelineEntry(effectiveDate, new Money(amountMinor, currencyCode));
     }
