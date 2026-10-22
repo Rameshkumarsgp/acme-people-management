@@ -3,6 +3,7 @@ package com.acme.peoplemanagement.config;
 import com.acme.peoplemanagement.employee.errors.EmailAlreadyExistsException;
 import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
 import com.acme.peoplemanagement.employee.errors.UnknownReferenceException;
+import com.acme.peoplemanagement.salary.errors.CurrencyRequiredException;
 import com.acme.peoplemanagement.salary.rules.SalaryRuleViolation;
 import java.util.List;
 import java.util.Objects;
@@ -44,6 +45,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(UnknownReferenceException.class)
     ProblemDetail unknownReference(final UnknownReferenceException exception) {
+        return invalidRequest(List.of(new FieldProblem(exception.field(), exception.getMessage())));
+    }
+
+    @ExceptionHandler(CurrencyRequiredException.class)
+    ProblemDetail currencyRequired(final CurrencyRequiredException exception) {
         return invalidRequest(List.of(new FieldProblem(exception.field(), exception.getMessage())));
     }
 
