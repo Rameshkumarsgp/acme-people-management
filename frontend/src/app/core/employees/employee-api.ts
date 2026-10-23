@@ -28,6 +28,22 @@ export interface Employee {
   version: number;
 }
 
+export interface SalaryEntry {
+  id: number;
+  effectiveDate: string;
+  amountMinor: number;
+  currency: string;
+  endDate: string | null;
+  current: boolean;
+  scheduled: boolean;
+}
+
+export interface AddSalaryEntryRequest {
+  effectiveDate: string;
+  amountMinor: number;
+  currency?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EmployeeApi {
   private readonly http = inject(HttpClient);
@@ -39,5 +55,20 @@ export class EmployeeApi {
 
   get(id: number): Promise<Employee> {
     return firstValueFrom(this.http.get<Employee>(`${this.apiBaseUrl}/employees/${id}`));
+  }
+
+  listSalaryEntries(employeeId: number): Promise<SalaryEntry[]> {
+    return firstValueFrom(
+      this.http.get<SalaryEntry[]>(`${this.apiBaseUrl}/employees/${employeeId}/salary-entries`),
+    );
+  }
+
+  addSalaryEntry(employeeId: number, request: AddSalaryEntryRequest): Promise<SalaryEntry> {
+    return firstValueFrom(
+      this.http.post<SalaryEntry>(
+        `${this.apiBaseUrl}/employees/${employeeId}/salary-entries`,
+        request,
+      ),
+    );
   }
 }
