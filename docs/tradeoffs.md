@@ -39,10 +39,20 @@ Decisions where we chose one cost over another, with the cost stated. Performanc
 
 **What it costs.**
 
-- **Titles and departments must already exist.** They are a standardized list that HR cannot extend, so a spreadsheet with free-text titles has those rows rejected for unknown values. The report groups the rejections, and adding a title needs a migration. For a real cutover this limitation may not hold, and it ties back to the question to Incubyte about standardized versus free-text titles.
+- **Titles and departments must already exist.** They are a standardized list that HR cannot extend, so a spreadsheet with free-text titles has those rows rejected for unknown values. The report lists each rejected row with its field (it does not group them), and adding a title needs a migration. For a real cutover this limitation may not hold, and it ties back to the question to Incubyte about standardized versus free-text titles.
 - Only the current salary is loaded. Salary history needs a second file.
 - HR must export the sheet to CSV first.
-- Throughput of loading 10,000 rows is unmeasured. We record the number here once the seed slice is built.
+- Leavers cannot be loaded until slice 6. A row with a termination date is rejected with a clear reason.
+- Dates must be ISO, and amounts must be plain numbers with a dot (no thousands separators). Excel's local formats are rejected, not guessed.
+
+**Measured.** Loading the 10,000-employee seed through the loader, one transaction per row through `EmployeeService.create`, on the owner's MacBook Pro with PostgreSQL 17 in Docker on the same machine, 23 October 2026:
+
+| Run | Result | Time | Per row |
+|---|---|---|---|
+| First load of `seed.csv` | 10,000 loaded, 0 rejected | 32,958 ms | about 3.3 ms |
+| Same file again | 0 loaded, 10,000 rejected as `EMAIL_ALREADY_EXISTS` | 75,870 ms | about 7.6 ms |
+
+The load is well under the one-minute line set in the slice 4 plan, so writes are not batched and the per-row rules stay as they are. A rejected row costs about twice a loaded one, because a failed insert rolls back and builds an exception. A file with many rejections is therefore the slow case. These are single runs on one machine, not a benchmark.
 
 **Alternatives rejected.**
 
@@ -50,8 +60,25 @@ Decisions where we chose one cost over another, with the cost stated. Performanc
 |---|---|
 | In-app upload screen | Column mapping, preview and row-level error review are a feature of their own. |
 | No migration path | The first question an evaluator would ask, and a real system cannot start empty. |
+| Loading with plain SQL (`COPY`) | It would be faster, but it would skip the salary rules and become a second write path to salary rows. |
 
 **Related.** [design.md](design.md), section "Data loading".
+
+## The seed is synthetic, and its dates depend on the day it is made
+
+**Decision.** The 10,000-employee seed comes from a deterministic generator with a fixed random seed. Pay is a base per job title, times a factor per country, times a tenure uplift, times noise of up to 10%, in each country's own currency. Each salary is dated at the employee's last work anniversary.
+
+**Why.** Insights by country, title and tenure need real differences to find. A few constants in one class give them, and a unit test can pin the shape.
+
+**What it costs.**
+
+- **The figures are invented.** The factors and the units-per-USD rates are plausible, not market data, and the product never converts currency. Nothing in the insights should be read as real pay.
+- **The same file comes out only for the same day.** Hire dates are relative to today, which the generator takes from the clock. Two runs on one day give identical bytes (checked across two separate processes). Runs on different days shift every date.
+- **No salary history.** The CSV carries one entry per employee, so the seed has none. Slice 3's tests and the UI cover history.
+- **No leavers until slice 6.**
+- **The generator's table can drift from the reference data.** An integration test checks titles, departments, countries and currency codes in both directions. It cannot check which currency a country uses, because the schema does not say.
+
+**Related.** [design.md](design.md), decisions 16 to 19.
 
 ## The shared HTTP Basic login is proportionate for this assessment, not production authentication
 

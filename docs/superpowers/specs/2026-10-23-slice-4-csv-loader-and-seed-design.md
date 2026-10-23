@@ -60,17 +60,17 @@ A rejected row does not stop the others, and each loaded row stays committed.
 
 ### Output
 
-- A line per rejected row: the row number (the line number in the file, counting the header as line 1), the field, and the reason.
+- A line per rejected row: the row number (counting the header as row 1 and skipping blank lines), the field, and the reason.
 - A summary of the counts loaded and rejected.
 - Exit status 0 only when nothing was rejected. Re-running a loaded file reports every row as `EMAIL_ALREADY_EXISTS` and exits non-zero (as in the design).
 
 ### Running it
 
 ```
-./gradlew bootRun --args="--spring.main.web-application-type=none --acme.load=seed.csv"
+./gradlew bootRun --args="--server.port=0 --acme.load=seed.csv"
 ```
 
-The app needs the datasource variables, as for any run. The web server is switched off so the process can exit.
+The app needs the datasource variables, as for any run. A random port (`--server.port=0`) avoids clashing with a running API, and `main` ends the run with its exit status. The web application stays on, because the security configuration needs it.
 
 ## Seed generator
 

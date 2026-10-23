@@ -118,6 +118,10 @@ Settled while designing the data model and API. Each was debated against alterna
 | 13 | A salary entry's end date is the **last day of its period**, the day before the next entry starts, and empty for the newest. `current` is the latest entry on or before today and `scheduled` is any entry after today, all worked out on the server from the injected clock. | One definition, matching the termination date meaning "last employed day". The browser's clock never decides which entry is current. |
 | 14 | A second salary entry on an existing date is refused by the timeline validator under the employee row lock, with the unique index as a backstop. | The lock admits one writer at a time, so the check cannot be raced (shown by a test that races two adds 25 times, and over real HTTP). Every timeline invariant stays in one class. |
 | 15 | A salary entry added without a currency takes the currency of the entry immediately before its date. If there is none, the currency is required. The date rules are checked first, so a date that cannot be used is reported as that and not as a missing currency. | The default follows the timeline, and gives a sensible answer for a backdated entry. Found by an end-to-end test: a duplicate of the first entry's date, sent without a currency, was reported as a missing currency. |
+| 16 | The loader and the seed generator are two command-line modes of the existing jar (`--acme.load=<file>`, `--acme.seed-csv=<file>`), and `make seed` runs both. Each CSV row is created through `EmployeeService.create`, one transaction per row. | Imported rows obey exactly the same rules as typed ones, with one jar to build and no second write path to salary rows. A raw SQL load would be faster but would skip the rules. |
+| 17 | The seed's pay is a small multiplicative model: a base per job title, times a factor per country, times a tenure uplift (4% a year, capped at 10 years), times seeded noise of up to 10%. It is paid in the country's own currency. Each salary is dated at the employee's most recent work anniversary. | Insights by country, title and tenure find real differences, from a few constants in one class. The date agrees with the tenure uplift. The constants are synthetic, and the product never converts currency. |
+| 18 | The generator keeps its own table of titles, departments and countries, and an integration test checks it against the reference data in both directions. | The table needs pay figures by title anyway, so reading the reference lists would not remove it. The test makes a reference change fail loudly instead of in a load. |
+| 19 | Leavers are not loaded until slice 6. The CSV keeps the `terminationDate` column, and the loader rejects a non-empty value with "Termination dates are not supported yet." The generator writes none. | The create path has no termination date, and its two rules arrive with the edit endpoint. Slice 4 adds no rule that nothing in the UI can reach. |
 
 ## Data model
 
@@ -248,7 +252,7 @@ Each slice delivers a working increment: the API, then its Angular screen, then 
 | 3 | Salary history list, add an entry | History table on the detail page, add-change dialog, current and scheduled markers |
 | 4 | CSV loader and deterministic seed generator (no endpoint). It comes before the directory and the insights, so both are built and measured against realistic volume. | None |
 | 5 | Directory: search, filter, sort, paginate | Directory table with filters, status filter and currency-safe salary sort |
-| 6 | Edit employee, terminate, delete (both need `version`) | Edit form, terminate action, delete with confirmation |
+| 6 | Edit employee, terminate, delete (both need `version`). Also: remove the loader's `terminationDate` rejection and turn on about 8% leavers in the seed generator. | Edit form, terminate action, delete with confirmation |
 | 7 | Edit and delete a salary entry, change log, and add the change-log write to adding an entry (slice 3 writes none) | Edit and delete in the history table, change log view |
 | 8 | Insights and extremes | Dashboard: dimension, filters, statistics per currency, highest and lowest paid |
 
@@ -302,31 +306,31 @@ A sum of many amounts can exceed the largest integer a JavaScript number holds e
 
 ## Data loading
 
-One loader serves two purposes: migrating ACME's existing spreadsheet, and loading the 10,000-employee seed. The seed is a deterministic generator that writes a CSV in the loader's format. It runs from the command line (the exact mechanism is chosen in slice 4). There is no upload screen.
+One loader serves two purposes: migrating ACME's existing spreadsheet, and loading the 10,000-employee seed. The seed is a deterministic generator that writes a CSV in the loader's format. Both run from the command line as modes of the application jar, and `make seed` runs the two in turn (decision 16). There is no upload screen.
 
 **CSV format.** One row per employee with their current salary:
 
 `fullName, email, hireDate, department, jobTitle, countryCode, currency, salary, salaryEffectiveDate, terminationDate`
 
-- `terminationDate` is optional, so leavers can be migrated. `salaryEffectiveDate` is optional and defaults to the hire date.
+- `salaryEffectiveDate` is optional and defaults to the hire date. `terminationDate` must be empty until slice 6, when leavers can be migrated (decision 19).
+- Dates are ISO (`2024-04-01`). Columns are found by header name, so their order does not matter. A missing, unknown or repeated header rejects the whole file before any row is read.
 - `salary` is written in major units, as Excel holds it (`1250000.00`). The loader converts it using the currency's minor-unit digits and rejects an amount with more decimals than the currency allows.
 - `department` and `jobTitle` match the reference names, ignoring case and surrounding spaces.
 
-**Rules.** Each row goes through the pure timeline validator and the reference lookups, so imported data obeys the same rules as typed data. A row is rejected, not the whole file. A rejected row is reported with its row number, field and reason, and the other rows still load. The summary gives counts loaded and rejected, and the exit status is non-zero when anything was rejected.
+**Rules.** Each row goes through the pure timeline validator and the reference lookups, so imported data obeys the same rules as typed data. A row is rejected, not the whole file. A rejected row is reported with its row number (the header is row 1), field and reason, and the other rows still load. Only a row problem counts as a rejection: an unexpected failure, such as a database error, stops the run. The summary gives counts loaded and rejected, and the exit status is non-zero when anything was rejected.
 
 **Re-running** the same file is duplicate-safe but not a no-op: every row already loaded is reported as `EMAIL_ALREADY_EXISTS`, nothing new is loaded, and the exit status is non-zero.
 
 **Limits, stated up front.**
 
-- **Titles and departments are a standardized list that HR cannot extend.** A spreadsheet with free-text titles will have rows rejected for unknown values. The report groups them, so it is clear what to add to the list through a migration. See [tradeoffs.md](tradeoffs.md).
+- **Titles and departments are a standardized list that HR cannot extend.** A spreadsheet with free-text titles will have rows rejected for unknown values. The report lists each rejected row with its field, so what to add to the list through a migration is visible, but it does not group them. See [tradeoffs.md](tradeoffs.md).
 - Only the current salary is loaded. A second file for salary history can be added later.
 - `.xlsx` is not parsed. HR saves the sheet as CSV.
-- Throughput is unmeasured. We measure the 10,000-row load in slice 4 and batch the writes if it is slow.
+- Throughput is measured: 10,000 rows load in about 33 seconds, one transaction per row, so writes are not batched. The numbers are in [tradeoffs.md](tradeoffs.md).
 
 ## Still to write
 
 - Insights approach in detail (the generic slice-by-dimension query)
-- Seed generator: realistic and deterministic pay by title, country and tenure, across several countries and currencies, written as a CSV in the loader's format
 - Local deployment plan (see below)
 
 ## Deployment

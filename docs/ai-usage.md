@@ -216,3 +216,63 @@ Slice 3 end to end: an employee's salary history on the detail page, and adding 
 ### Lesson
 
 A test counts only if a plausible break fails it. Three times in this slice a mutation survived or never ran: one boundary no test checked, one test too narrow to tell earliest from latest, and a race test that caught a missing lock only a third of the time. Running the break, and reading why it did or did not fail, found each of them.
+
+## Session 5: slice 4, the CSV loader and the seed, and a hand test of slice 3 (23 Oct 2026)
+
+### What we did
+
+I tested slice 3 by hand in the browser, then built slice 4: a CSV loader and the deterministic 10,000-employee seed, as two command-line modes of the backend jar. I had the AI put six design decisions to me one at a time with a recommendation, write a spec, then an implementation plan of 8 tasks, and build it one task at a time. Each task was test first, with the code broken on purpose to prove each test, and ended with the files staged and a message for me to commit.
+
+### Prompts (summarized)
+
+| Prompt | Outcome |
+|---|---|
+| "lets test out slice 3" | Steps to run it by hand. My own run found a real bug: the first field's label in the Add salary dialog was cut off |
+| "commit message and move on with pending slices" | The AI started slice 4 with decision 1 |
+| "A" (five times) | The loader is a mode of the jar, the generator is Java in the same jar, pay is a multiplicative model, each salary is dated at the last work anniversary, and `make seed` runs two commands |
+| "A" (leavers) | Leavers wait for slice 6, after the AI found the create path cannot set a termination date |
+| "approved, write the implementation plan", "approved start" | The plan, then the build |
+| "next" | One task at a time, stopping after each for my commit |
+| "from now onwards add comment only if necessary" | Saved as a standing preference |
+
+### What the AI got wrong or I had to correct
+
+| What happened | What I did and why |
+|---|---|
+| The design said the CSV could carry leavers, but `EmployeeService.create` has no termination date, and the two rules for it belong to slice 6. | The AI found it by reading the real code before writing the spec, and asked me. I chose to defer leavers, and the loader rejects a termination date with a clear reason. |
+| The AI said the generator would read the reference lists so it could not name something that does not exist. It needs its own pay table by title anyway. | The claim was corrected in the spec, and an integration test now checks the table against the migrations in both directions. |
+| The plan's first design switched the web server off for batch runs. The security configuration expects a web application. | Runs use `--server.port=0`, which also avoids clashing with the running API. A real run proved the exit statuses. |
+| The CSV library allows duplicate headers by default and its older flag is deprecated, so `-Werror` would fail on it. Row numbers count records, not lines. | Found by probing the library in a throwaway before the plan was written. The plan uses the current setting and defines the row number. |
+| The tenure test passed even when the generator ignored tenure, because noise beat the average half the time by chance. | It now requires seniors to earn at least 15% more. It fails when tenure is ignored. |
+| Four mutations did not compile (Error Prone rejected an unused field, an unused parameter, an unused variable and a comparison against 1), and a fifth failed every test. | The AI read the output and redid each as a mutation that compiles and fails only the intended tests. |
+| The full gate found problems the plan missed: a record exposing a mutable map (SpotBugs), over-long lines, and an invisible byte-order-mark character stored where the code should have the visible escape. | Fixed in the task where each appeared, the map with its own test and proof. |
+| The AI told me Postgres was already running, and told me to "open an existing employee", which has no screen yet. | Both were wrong. The database had stopped, and the directory is a later slice. I tested with a new employee, and the AI now checks first. |
+| The first-field label in the Add salary dialog was clipped. | I found it by testing by hand. The body of the dialog scrolls, so the label needed more room above it. Fixed with one value. |
+
+### Decisions I made, and the reasoning
+
+- **The loader and the generator are modes of the jar:** imported rows go through the same service and rules as typed ones, with no second write path to salary rows.
+- **Pay is a small multiplicative model:** a few constants give insights real differences by country, title and tenure, and a unit test can pin the shape.
+- **Each salary is dated at the last work anniversary:** the date agrees with the tenure uplift it contains.
+- **Leavers wait for slice 6:** slice 4 adds no rule that nothing in the UI can reach.
+- **A bad row is rejected, anything else aborts:** a broken database is not a bad row, and counting it as one would hide a failing run.
+- **No batching:** the load took 33 seconds, under the one-minute line I set before measuring.
+
+### What was verified, not assumed
+
+| Question | Finding |
+|---|---|
+| How long does loading 10,000 employees take? | 10,000 loaded, 0 rejected, in 32,958 ms (about 3.3 ms a row). |
+| What does loading the same file twice do? | 10,000 rejected as `EMAIL_ALREADY_EXISTS`, nothing created, exit status 1, and it took 75,870 ms. Rejections cost about twice a load. |
+| Does a batch run exit with the right status? | Yes, in a real process: seed mode exits 0, and load mode on a bad header exits 1. No test can show this, because it is `main`'s `System.exit`. |
+| Is the seed deterministic? | Yes. Two separate processes on the same day wrote byte-identical files. A different day shifts the dates, and the tradeoffs note says so. |
+| Does the generator's table match the reference data? | Yes, for titles, departments, countries and currency codes. It cannot check which currency a country uses, because the schema does not say. |
+
+### What I would do differently
+
+- Probe a library before writing a plan against it. Two plan details were wrong until the probe.
+- Compile each planned mutation before trusting the plan's list. Four did not compile.
+
+### Lesson
+
+A test passing is not a proof. The tenure test passed with the feature switched off, half the time, by chance. Breaking the code and asking why it did not fail found it, and the fix was a margin the noise cannot fake.

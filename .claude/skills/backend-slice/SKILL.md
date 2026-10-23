@@ -81,4 +81,5 @@ Limits: 120 columns, methods up to 25 non-empty lines, up to 5 parameters, no si
 
 - Run it for real, not only the tests: start Postgres and the API, then drive it with curl or the browser. A shell tab needs `.env` loaded, and the API port may not be 8080.
 - Add what the slice taught you to `docs/ai-usage.md`, and any measured number to `docs/tradeoffs.md`. Record a design decision in the decisions table in `docs/design.md`, and a limit in `docs/requirements.md`.
+- A command-line mode of the jar (a loader, a generator) ends with `System.exit(SpringApplication.exit(context))` in `main`, and runs with `--server.port=0`. Do not switch the web application off: the security configuration needs it. Only a real run proves the exit status.
 - Do a final pass for behavior the tests could miss, by probing with odd input (fractions, strings, huge numbers, other casing). Slice 2's review found a money-truncation bug this way.
