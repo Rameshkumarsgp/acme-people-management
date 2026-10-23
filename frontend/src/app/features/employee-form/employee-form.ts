@@ -12,7 +12,10 @@ import { CreateEmployeeRequest, EmployeeApi } from '../../core/employees/employe
 import { ReferenceApi, ReferenceLists } from '../../core/reference/reference-api';
 import { AmountError, parseMajorToMinor } from '../../shared/money/parse-major-to-minor';
 import { ControlName, SERVER_FIELD_TO_CONTROL } from './employee-form-fields';
-import { describeAmountError, salaryAmountValidator } from './salary-amount.validator';
+import {
+  describeAmountError,
+  salaryAmountValidator,
+} from '../../shared/money/salary-amount.validator';
 
 @Component({
   selector: 'app-employee-form',

@@ -1,0 +1,38 @@
+<!-- The labels and messages are hard-coded in English for now. For localization they should come from one central place, such as Angular's i18n. -->
+<form [formGroup]="form" (ngSubmit)="addSalary()" novalidate>
+  <h2 mat-dialog-title>Add salary</h2>
+  <mat-dialog-content>
+    <mat-form-field appearance="outline">
+      <mat-label>Effective date</mat-label>
+      <input matInput type="date" formControlName="effectiveDate" />
+      <mat-error>{{ errorMessage('effectiveDate') }}</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Currency</mat-label>
+      <select matNativeControl formControlName="currency">
+        @for (currency of currencies; track currency.code) {
+          <option [value]="currency.code">{{ currency.code }}</option>
+        }
+      </select>
+      <mat-error>{{ errorMessage('currency') }}</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Annual base salary</mat-label>
+      <input matInput formControlName="amount" inputmode="decimal" />
+      <mat-hint>For example 1,500,000.50</mat-hint>
+      <mat-error>{{ errorMessage('amount') }}</mat-error>
+    </mat-form-field>
+
+    @if (formError(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" mat-dialog-close>Cancel</button>
+    <button mat-flat-button type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Saving…' : 'Add salary' }}
+    </button>
+  </mat-dialog-actions>
+</form>

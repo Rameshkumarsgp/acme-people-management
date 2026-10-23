@@ -1,5 +1,5 @@
 import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
-import { AmountError, parseMajorToMinor } from '../../shared/money/parse-major-to-minor';
+import { AmountError, parseMajorToMinor } from './parse-major-to-minor';
 
 /**
  * Checks the typed salary against the decimals of the chosen currency. An empty field is left to the
