@@ -41,6 +41,13 @@
             </dl>
           </mat-card-content>
         </mat-card>
+        <section class="history-section">
+          <h3>Salary history</h3>
+          <app-salary-history [entries]="entries()" [currencies]="currencies()" />
+          <button mat-flat-button type="button" data-test="add-salary" (click)="openAddSalary()">
+            Add salary
+          </button>
+        </section>
         <a mat-stroked-button routerLink="/">Back to home</a>
       }
     }
