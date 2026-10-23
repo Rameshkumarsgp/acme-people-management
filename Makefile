@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup test test-backend test-integration test-frontend test-e2e check secrets audit
+.PHONY: help setup test test-backend test-integration test-frontend test-e2e seed check secrets audit
 
 ROOT := $(shell git rev-parse --show-toplevel)
 NODE := . $(ROOT)/scripts/use-node.sh
@@ -26,6 +26,9 @@ test-frontend: ## Frontend: format, lint and unit tests
 
 test-e2e: ## Real-browser tests of the screens (installs Chromium once, not part of pre-commit)
 	$(NODE) && cd frontend && npx playwright install chromium && npm run e2e
+
+seed: ## Generate seed.csv (10,000 employees) and load it into the database named in .env. Run on an empty database
+	sh scripts/seed.sh
 
 test: test-backend test-frontend ## Fast checks for both apps (what pre-commit runs)
 
