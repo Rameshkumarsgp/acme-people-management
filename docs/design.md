@@ -115,6 +115,9 @@ Settled while designing the data model and API. Each was debated against alterna
 | 10 | The termination date is the **last employed day**. An employee is active on that date and former after it. | One meaning, used by the directory, the status filter and the insights. It also matches rule 9, which allows an entry dated on the termination date. |
 | 11 | Migration from Excel is a one-time **CSV load from the command line**, through the same validation as typed data. The seed is the same loader fed by a generator. | HR will not retype 10,000 employees, but an upload screen is a feature of its own. Excel saves as CSV, so no spreadsheet parsing is needed. |
 | 12 | Features read each other's data through public lookups and services, never through entities or repositories. `employee` stores plain keys for the department, job title and country, and `reference` exposes a public `ReferenceLookup`. `salary` stores a plain `employeeId`. | Keeps entities and repositories private to their package, so no feature can change another's rows or depend on how they are stored. The foreign keys still protect the data. |
+| 13 | A salary entry's end date is the **last day of its period**, the day before the next entry starts, and empty for the newest. `current` is the latest entry on or before today and `scheduled` is any entry after today, all worked out on the server from the injected clock. | One definition, matching the termination date meaning "last employed day". The browser's clock never decides which entry is current. |
+| 14 | A second salary entry on an existing date is refused by the timeline validator under the employee row lock, with the unique index as a backstop. | The lock admits one writer at a time, so the check cannot be raced (shown by a test that races two adds 25 times, and over real HTTP). Every timeline invariant stays in one class. |
+| 15 | A salary entry added without a currency takes the currency of the entry immediately before its date. If there is none, the currency is required. The date rules are checked first, so a date that cannot be used is reported as that and not as a missing currency. | The default follows the timeline, and gives a sensible answer for a backdated entry. Found by an end-to-end test: a duplicate of the first entry's date, sent without a currency, was reported as a missing currency. |
 
 ## Data model
 
@@ -246,7 +249,7 @@ Each slice delivers a working increment: the API, then its Angular screen, then 
 | 4 | CSV loader and deterministic seed generator (no endpoint). It comes before the directory and the insights, so both are built and measured against realistic volume. | None |
 | 5 | Directory: search, filter, sort, paginate | Directory table with filters, status filter and currency-safe salary sort |
 | 6 | Edit employee, terminate, delete (both need `version`) | Edit form, terminate action, delete with confirmation |
-| 7 | Edit and delete a salary entry, change log | Edit and delete in the history table, change log view |
+| 7 | Edit and delete a salary entry, change log, and add the change-log write to adding an entry (slice 3 writes none) | Edit and delete in the history table, change log view |
 | 8 | Insights and extremes | Dashboard: dimension, filters, statistics per currency, highest and lowest paid |
 
 The skill for the repeated backend pattern (endpoint plus database change) is written after slice 2, when a read and a write have both been built. A matching frontend skill follows once a few screens share a pattern.
