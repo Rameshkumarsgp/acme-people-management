@@ -1,0 +1,20 @@
+<table mat-table [dataSource]="entries()" class="history">
+  <ng-container matColumnDef="effectiveDate">
+    <th mat-header-cell *matHeaderCellDef>From</th>
+    <td mat-cell *matCellDef="let entry">{{ entry.effectiveDate }}</td>
+  </ng-container>
+  <ng-container matColumnDef="endDate">
+    <th mat-header-cell *matHeaderCellDef>To</th>
+    <td mat-cell *matCellDef="let entry">{{ entry.endDate ?? '—' }}</td>
+  </ng-container>
+  <ng-container matColumnDef="amount">
+    <th mat-header-cell *matHeaderCellDef>Annual salary</th>
+    <td mat-cell *matCellDef="let entry">{{ amountText(entry) }}</td>
+  </ng-container>
+  <ng-container matColumnDef="marker">
+    <th mat-header-cell *matHeaderCellDef></th>
+    <td mat-cell *matCellDef="let entry">{{ markerText(entry) }}</td>
+  </ng-container>
+  <tr mat-header-row *matHeaderRowDef="columns"></tr>
+  <tr mat-row *matRowDef="let row; columns: columns"></tr>
+</table>
