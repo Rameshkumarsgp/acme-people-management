@@ -48,6 +48,28 @@ class ReferenceLookupIntegrationTest {
         assertThat(lookup.currency("ZZZ")).isEmpty();
     }
 
+    @Test
+    void findsADepartmentByNameIgnoringCaseAndSurroundingSpaces() {
+        final int id = idOf("department", "Data and Analytics");
+
+        assertThat(lookup.departmentByName("  data AND analytics "))
+                .contains(new DepartmentResponse(id, "Data and Analytics"));
+    }
+
+    @Test
+    void findsAJobTitleByNameIgnoringCaseAndSurroundingSpaces() {
+        final int id = idOf("job_title", "Software Engineer");
+
+        assertThat(lookup.jobTitleByName(" SOFTWARE engineer"))
+                .contains(new JobTitleResponse(id, "Software Engineer"));
+    }
+
+    @Test
+    void answersEmptyForANameThatDoesNotExist() {
+        assertThat(lookup.departmentByName("Astrology")).isEmpty();
+        assertThat(lookup.jobTitleByName("Astrologer")).isEmpty();
+    }
+
     private int idOf(final String table, final String name) {
         final Integer id = jdbcTemplate.queryForObject(
                 "select id from " + table + " where name = ?", Integer.class, name);

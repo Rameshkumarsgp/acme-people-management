@@ -27,13 +27,19 @@ public class ReferenceLookup {
     }
 
     public Optional<DepartmentResponse> department(final int id) {
-        return departmentRepository.findById(id)
-                .map(department -> new DepartmentResponse(department.id(), department.name()));
+        return departmentRepository.findById(id).map(ReferenceLookup::toResponse);
+    }
+
+    public Optional<DepartmentResponse> departmentByName(final String name) {
+        return departmentRepository.findByNameIgnoreCase(name.strip()).map(ReferenceLookup::toResponse);
     }
 
     public Optional<JobTitleResponse> jobTitle(final int id) {
-        return jobTitleRepository.findById(id)
-                .map(jobTitle -> new JobTitleResponse(jobTitle.id(), jobTitle.name()));
+        return jobTitleRepository.findById(id).map(ReferenceLookup::toResponse);
+    }
+
+    public Optional<JobTitleResponse> jobTitleByName(final String name) {
+        return jobTitleRepository.findByNameIgnoreCase(name.strip()).map(ReferenceLookup::toResponse);
     }
 
     public Optional<CountryResponse> country(final String code) {
@@ -44,5 +50,13 @@ public class ReferenceLookup {
     public Optional<CurrencyResponse> currency(final String code) {
         return currencyRepository.findById(code)
                 .map(currency -> new CurrencyResponse(currency.code(), currency.minorUnitDigits()));
+    }
+
+    private static DepartmentResponse toResponse(final Department department) {
+        return new DepartmentResponse(department.id(), department.name());
+    }
+
+    private static JobTitleResponse toResponse(final JobTitle jobTitle) {
+        return new JobTitleResponse(jobTitle.id(), jobTitle.name());
     }
 }
