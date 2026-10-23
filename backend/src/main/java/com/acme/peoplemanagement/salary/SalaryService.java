@@ -53,8 +53,12 @@ public class SalaryService {
     public HistoryEntry addEntry(
             final long employeeId, final LocalDate hireDate, final NewSalaryEntry newEntry, final LocalDate today) {
         final List<IdentifiedEntry> stored = storedEntriesOf(employeeId);
-        final TimelineEntry added = toTimelineEntry(newEntry, stored);
-        validator.validate(hireDate, timelineWith(stored, added), today);
+        final TimelineEntry candidate = new TimelineEntry(
+                newEntry.effectiveDate(), new Money(newEntry.amountMinor(), newEntry.currencyCode()));
+        // The rules read dates only, so they run before the currency is filled in: a date that cannot be
+        // used is reported as that, and not as a missing currency.
+        validator.validate(hireDate, timelineWith(stored, candidate), today);
+        final TimelineEntry added = withResolvedCurrency(candidate, stored);
         final long id = salaryEntryRepository.save(new SalaryEntry(employeeId, added)).id();
         return historyEntryWithId(id, stored, added, today);
     }
@@ -70,11 +74,13 @@ public class SalaryService {
                 .toList();
     }
 
-    private static TimelineEntry toTimelineEntry(final NewSalaryEntry newEntry, final List<IdentifiedEntry> stored) {
-        final String currency = newEntry.currencyCode() != null
-                ? newEntry.currencyCode()
-                : currencyBefore(newEntry.effectiveDate(), stored);
-        return new TimelineEntry(newEntry.effectiveDate(), new Money(newEntry.amountMinor(), currency));
+    private static TimelineEntry withResolvedCurrency(
+            final TimelineEntry candidate, final List<IdentifiedEntry> stored) {
+        if (candidate.salary().currencyCode() != null) {
+            return candidate;
+        }
+        final String currency = currencyBefore(candidate.effectiveDate(), stored);
+        return new TimelineEntry(candidate.effectiveDate(), new Money(candidate.salary().amountMinor(), currency));
     }
 
     /** The currency in force just before a date: that of the latest entry dated before it. */

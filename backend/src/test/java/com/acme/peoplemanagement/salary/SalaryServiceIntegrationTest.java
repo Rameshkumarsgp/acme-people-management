@@ -162,6 +162,26 @@ class SalaryServiceIntegrationTest {
     }
 
     @Test
+    void reportsADuplicateDateBeforeAskingForACurrency() {
+        employees.insertSalary(employeeId, HIRE_DATE, 100L, "INR");
+
+        assertThatThrownBy(() -> salaryService.addEntry(employeeId, HIRE_DATE,
+                new NewSalaryEntry(HIRE_DATE, 150L, null), TODAY))
+                .isInstanceOfSatisfying(SalaryRuleViolation.class,
+                        violation -> assertThat(violation.code()).isEqualTo(SalaryRuleCode.DUPLICATE_SALARY_DATE));
+    }
+
+    @Test
+    void reportsADateBeforeTheHireDateBeforeAskingForACurrency() {
+        employees.insertSalary(employeeId, HIRE_DATE, 100L, "INR");
+
+        assertThatThrownBy(() -> salaryService.addEntry(employeeId, HIRE_DATE,
+                new NewSalaryEntry(HIRE_DATE.minusDays(1), 90L, null), TODAY))
+                .isInstanceOfSatisfying(SalaryRuleViolation.class,
+                        violation -> assertThat(violation.code()).isEqualTo(SalaryRuleCode.SALARY_BEFORE_HIRE_DATE));
+    }
+
+    @Test
     void listsTheHistoryNewestFirstWithTheDerivedValues() {
         employees.insertSalary(employeeId, HIRE_DATE, 100L, "INR");
         employees.insertSalary(employeeId, LocalDate.of(2025, 4, 1), 120L, "INR");
