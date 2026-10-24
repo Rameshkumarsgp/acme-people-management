@@ -9,6 +9,7 @@ import {
   DirectoryQuery,
   EmployeeApi,
   SalaryEntry,
+  UpdateEmployeeRequest,
 } from './employee-api';
 
 describe('EmployeeApi', () => {
@@ -132,6 +133,38 @@ describe('EmployeeApi', () => {
       expect(call.request.params.get('sort')).toBe('fullName,asc');
       expect(call.request.params.get('page')).toBe('0');
       expect(call.request.params.get('size')).toBe('20');
+    });
+  });
+
+  describe('update and delete', () => {
+    it('puts the whole profile with its version and returns the updated employee', async () => {
+      const request: UpdateEmployeeRequest = {
+        fullName: 'Asha Rao',
+        email: 'asha.rao@acme.example',
+        hireDate: '2024-04-01',
+        terminationDate: null,
+        departmentId: 3,
+        jobTitleId: 12,
+        countryCode: 'IN',
+        version: 4,
+      };
+      const updating = api.update(10432, request);
+      const call = http.expectOne('/api/employees/10432');
+      expect(call.request.method).toBe('PUT');
+      expect(call.request.body).toEqual(request);
+      call.flush({ id: 10432, version: 5 });
+
+      expect((await updating).version).toBe(5);
+    });
+
+    it('deletes an employee and sends the version as a query parameter', async () => {
+      const deleting = api.delete(10432, 3);
+      const call = http.expectOne((request) => request.url === '/api/employees/10432');
+      expect(call.request.method).toBe('DELETE');
+      expect(call.request.params.get('version')).toBe('3');
+      call.flush(null, { status: 204, statusText: 'No Content' });
+
+      await expect(deleting).resolves.toBeUndefined();
     });
   });
 });

@@ -28,6 +28,18 @@ export interface Employee {
   version: number;
 }
 
+/** The whole profile of an employee, with the version HR saw. An empty termination date means still employed. */
+export interface UpdateEmployeeRequest {
+  fullName: string;
+  email: string;
+  hireDate: string;
+  terminationDate: string | null;
+  departmentId: number;
+  jobTitleId: number;
+  countryCode: string;
+  version: number;
+}
+
 export interface SalaryEntry {
   id: number;
   effectiveDate: string;
@@ -126,6 +138,17 @@ export class EmployeeApi {
       params = params.set('currency', query.currency);
     }
     return firstValueFrom(this.http.get<DirectoryPage>(`${this.apiBaseUrl}/employees`, { params }));
+  }
+
+  update(id: number, request: UpdateEmployeeRequest): Promise<Employee> {
+    return firstValueFrom(this.http.put<Employee>(`${this.apiBaseUrl}/employees/${id}`, request));
+  }
+
+  delete(id: number, version: number): Promise<void> {
+    const params = new HttpParams().set('version', version);
+    return firstValueFrom(
+      this.http.delete<void>(`${this.apiBaseUrl}/employees/${id}`, { params }),
+    ).then(() => undefined);
   }
 
   listSalaryEntries(employeeId: number): Promise<SalaryEntry[]> {

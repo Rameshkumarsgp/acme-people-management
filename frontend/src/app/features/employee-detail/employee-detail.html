@@ -40,7 +40,21 @@
               </dd>
             </dl>
           </mat-card-content>
+          <mat-card-actions>
+            <a mat-stroked-button [routerLink]="['/employees', person.id, 'edit']">Edit</a>
+            <button
+              mat-stroked-button
+              type="button"
+              data-test="delete-employee"
+              (click)="deleteEmployee()"
+            >
+              Delete
+            </button>
+          </mat-card-actions>
         </mat-card>
+        @if (actionError(); as message) {
+          <p class="error" role="alert">{{ message }}</p>
+        }
         <section class="history-section">
           <h3>Salary history</h3>
           <app-salary-history [entries]="entries()" [currencies]="currencies()" />

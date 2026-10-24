@@ -67,6 +67,22 @@ describe('routes', () => {
     TestBed.inject(HttpTestingController).expectOne('/api/employees/10432');
   });
 
+  it('sends a visitor who is not logged in from the edit page to the login page', async () => {
+    await RouterTestingHarness.create('/employees/10432/edit');
+
+    expect(TestBed.inject(Router).url).toBe('/login');
+  });
+
+  it('lets a logged-in user open the edit form of an employee', async () => {
+    await logIn();
+
+    const harness = await RouterTestingHarness.create('/employees/10432/edit');
+
+    expect(TestBed.inject(Router).url).toBe('/employees/10432/edit');
+    expect(harness.routeNativeElement?.textContent).toContain('Edit employee');
+    TestBed.inject(HttpTestingController).expectOne('/api/employees/10432');
+  });
+
   it('lets a logged-in user reach the home page', async () => {
     await logIn();
 

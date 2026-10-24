@@ -1,0 +1,15 @@
+<!-- The labels and messages are hard-coded in English for now. For localization they should come from one central place, such as Angular's i18n. -->
+<h2 mat-dialog-title>Delete {{ fullName }}?</h2>
+<mat-dialog-content>
+  <p>
+    This removes the employee and their whole salary history. It is meant for a record entered by
+    mistake, and it cannot be undone. An employee who left should be given a termination date
+    instead.
+  </p>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button type="button" data-test="cancel-delete" (click)="answer(false)">Cancel</button>
+  <button mat-flat-button type="button" data-test="confirm-delete" (click)="answer(true)">
+    Delete
+  </button>
+</mat-dialog-actions>

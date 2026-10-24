@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { EmployeeDetail } from './employee-detail';
 
@@ -180,5 +180,120 @@ describe('EmployeeDetail', () => {
     await new Promise((resolve) => setTimeout(resolve));
 
     http.expectNone('/api/employees/10432');
+  });
+
+  describe('editing and deleting', () => {
+    let navigate: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    });
+
+    function confirmDelete(answer: boolean) {
+      return vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(answer),
+      } as MatDialogRef<unknown, boolean>);
+    }
+
+    async function clickDelete(employee: object = EMPLOYEE): Promise<void> {
+      answer(employee);
+      await until(() => expect(page.textContent).toContain('Asha Rao'));
+      page.querySelector<HTMLButtonElement>('button[data-test="delete-employee"]')!.click();
+    }
+
+    const deleteRequest = () =>
+      http.expectOne(
+        (request) => request.method === 'DELETE' && request.url === '/api/employees/10432',
+      );
+
+    it('links to the edit form', async () => {
+      answer(EMPLOYEE);
+
+      await until(() =>
+        expect(page.querySelector('a[href="/employees/10432/edit"]')?.textContent).toContain(
+          'Edit',
+        ),
+      );
+    });
+
+    it('asks for confirmation naming the employee before it deletes', async () => {
+      const open = confirmDelete(false);
+
+      await clickDelete();
+
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0][1]?.data).toEqual({ fullName: 'Asha Rao' });
+    });
+
+    it('does nothing when the confirmation is cancelled', async () => {
+      confirmDelete(false);
+
+      await clickDelete();
+      await new Promise((resolve) => setTimeout(resolve));
+
+      http.expectNone((request) => request.method === 'DELETE');
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('deletes with the version it saw and goes to the directory', async () => {
+      confirmDelete(true);
+
+      await clickDelete({ ...EMPLOYEE, version: 3 });
+      let sent = '';
+      await vi.waitFor(() => {
+        const request = deleteRequest();
+        sent = request.request.params.get('version') ?? '';
+        request.flush(null, { status: 204, statusText: 'No Content' });
+      });
+
+      expect(sent).toBe('3');
+      await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/employees'));
+    });
+
+    it('says someone else changed the employee, and shows the latest version, when the version is stale', async () => {
+      confirmDelete(true);
+
+      await clickDelete();
+      await vi.waitFor(() =>
+        deleteRequest().flush(
+          { code: 'VERSION_CONFLICT', detail: 'changed' },
+          { status: 409, statusText: 'Conflict' },
+        ),
+      );
+      await vi.waitFor(() => answer({ ...EMPLOYEE, fullName: 'Asha R. Rao', version: 3 }));
+
+      await until(() => {
+        expect(page.textContent).toContain('Asha R. Rao');
+        expect(page.querySelector('[role="alert"]')?.textContent).toContain(
+          'changed by someone else',
+        );
+      });
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('says the employee does not exist when it was already deleted', async () => {
+      confirmDelete(true);
+
+      await clickDelete();
+      await vi.waitFor(() => deleteRequest().flush(null, { status: 404, statusText: 'Not Found' }));
+
+      await until(() =>
+        expect(page.querySelector('[role="alert"]')?.textContent).toContain(
+          'No employee with this ID',
+        ),
+      );
+    });
+
+    it('says it could not delete when the server fails', async () => {
+      confirmDelete(true);
+
+      await clickDelete();
+      await vi.waitFor(() => deleteRequest().error(new ProgressEvent('error')));
+
+      await until(() =>
+        expect(page.querySelector('[role="alert"]')?.textContent).toContain('Could not delete'),
+      );
+      expect(navigate).not.toHaveBeenCalled();
+    });
   });
 });
