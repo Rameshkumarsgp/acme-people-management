@@ -3,6 +3,7 @@ package com.acme.peoplemanagement.config;
 import com.acme.peoplemanagement.directory.errors.InvalidDirectoryRequestException;
 import com.acme.peoplemanagement.employee.errors.EmailAlreadyExistsException;
 import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
+import com.acme.peoplemanagement.employee.errors.StaleVersionException;
 import com.acme.peoplemanagement.employee.errors.UnknownReferenceException;
 import com.acme.peoplemanagement.salary.errors.CurrencyRequiredException;
 import com.acme.peoplemanagement.salary.rules.SalaryRuleViolation;
@@ -37,6 +38,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(EmailAlreadyExistsException.class)
     ProblemDetail emailAlreadyExists(final EmailAlreadyExistsException exception) {
         return problemWithCode(HttpStatus.CONFLICT, exception.getMessage(), "EMAIL_ALREADY_EXISTS");
+    }
+
+    @ExceptionHandler(StaleVersionException.class)
+    ProblemDetail staleVersion(final StaleVersionException exception) {
+        return problemWithCode(HttpStatus.CONFLICT, exception.getMessage(), "VERSION_CONFLICT");
     }
 
     @ExceptionHandler(EmployeeNotFoundException.class)
