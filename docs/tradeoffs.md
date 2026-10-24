@@ -124,3 +124,50 @@ The load is well under the one-minute line set in the slice 4 plan, so writes ar
 **Upgrade path.** Add a standardized `job_level` reference table and a nullable `job_level_id` on the employee. It is additive: existing rows stay valid, and the directory filter and an insights dimension follow. Nothing built before that point has to change.
 
 **Related.** [requirements.md](requirements.md), the open question on titles and departments.
+
+## The directory is a read model that reads other features' tables
+
+**Decision.** `GET /api/employees` is served by a read-side `directory` package. It joins `employee`, `salary_entry` and the reference tables in one SQL statement on `JdbcTemplate`, and cuts the page in the database. Writes still go only through the owning service. The rule "features read each other only through public services" now has one stated exception: read models, which may join across tables and never write.
+
+**Why.** The directory must filter by the currency of the employee's *current* salary and sort by salary, over 10,000 rows. Asking each feature for its rows cannot do that. A copy of the current salary on `employee` would go stale when a future-dated raise takes effect, with no write to refresh it.
+
+**What it costs.**
+
+- The directory knows the column names of three features' tables. A rename in `employee`, `salary_entry` or a reference table breaks it. The integration tests catch that, but the coupling is real, and the insights slice adds a second reader.
+- **Offset paging.** A deep page costs more than a shallow one, and a row added between two requests can shift a page. At 10,000 rows and 20 per page neither is noticeable.
+- **No index was added.** The plan for the default view is a sequential scan of the employee table with a top-N sort. That is fine at 10,000 rows. If it ever is not, the first move is an index on `lower(full_name)`, added only after measuring.
+- **The seed has one salary entry per employee**, so the lateral join was measured with almost no history. It costs one index probe per employee, so it should not grow with history, but that is not shown by these numbers.
+- A page reload logs the user out, so the state kept in the URL survives moving around the app, not a reload.
+
+**Measured.** Through the real endpoint, including the login check, the two SQL statements (a count and a page), JSON and HTTP, on the owner's MacBook Pro with PostgreSQL 17 in Docker on the same machine, against 10,014 employees on 24 October 2026. Each query was run once to warm up, then nine times, timed with `curl`:
+
+| Request | Min | Median | Max |
+|---|---|---|---|
+| Default view (active, by name, page 1) | 27.8 ms | 30.6 ms | 38.6 ms |
+| Search `rao` (487 matches) | 21.3 ms | 22.3 ms | 24.0 ms |
+| Search `asha.rao1` (few matches) | 23.7 ms | 25.2 ms | 26.3 ms |
+| Currency INR, sort by salary descending | 24.9 ms | 27.0 ms | 28.1 ms |
+| Country IN and department 1 | 7.1 ms | 7.6 ms | 10.3 ms |
+| Deep page (page 499 of 500) | 33.0 ms | 34.5 ms | 34.9 ms |
+| Page size 100 | 24.5 ms | 30.4 ms | 32.8 ms |
+| All statuses, sort by hire date descending | 27.4 ms | 28.3 ms | 31.2 ms |
+
+The SQL alone, from `EXPLAIN ANALYZE` (best of three), when choosing how to compute the current salary:
+
+| Query | Lateral join | Window function |
+|---|---|---|
+| Active, currency INR, sort by salary, page 1 | 7.2 ms | 6.1 ms |
+| Active, sort by name, page 1 | 9.2 ms | 8.3 ms |
+
+A plain contains-search on name and email took about 5.5 ms whether it matched 487 rows, 2 or none. The two forms differ by about a millisecond, which is noise, so the lateral join was chosen for clarity and because it costs one index probe per employee. The default view is the slowest because it runs both statements over every row (the count and the page each join everything), and a narrow filter is the fastest. These are single sessions on one machine, not a benchmark.
+
+**Alternatives rejected.**
+
+| Option | Why not |
+|---|---|
+| Keep the boundary rule absolute, with `employee` paging its own rows and asking `salary` and `reference` for the rest | The directory could not sort or filter by salary or currency in the database, which breaks a requirement. |
+| Copy the current salary onto `employee` | It goes stale when a future-dated raise takes effect, with no write to refresh it. |
+| A window function for the current salary | About a millisecond faster here, but it numbers every salary entry of every employee on each query, so its cost grows with history. |
+| A trigram index for search | At 10,000 rows it speeds up nothing a person can notice, and it needs an extension, a migration and an index to maintain. |
+
+**Related.** [design.md](design.md), decisions 20 to 23 and "Directory filters and sort".

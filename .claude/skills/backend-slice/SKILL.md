@@ -37,6 +37,7 @@ How a backend slice is built here, in order. Coding rules (Java style, naming, i
 
 - Entity, repository and service stay together and package-private. Make a class public only when another folder must call it, and say so in the summary.
 - Features read each other through a **public service or lookup**, never an entity or repository, and store the other feature's rows by **plain id**. No cycles. `config/` may import from features, never the reverse.
+- **A read model is the one exception** (the directory, the insights): its own package may join other features' tables in native SQL on `JdbcTemplate`, and never writes. It imports no other feature's classes, builds its SQL from fixed fragments with every request value as a named parameter, and has a test that a hostile value stays out of the SQL.
 - The service owns the transaction. One write path per table (salary rows are written only by `SalaryService`).
 - A duplicate is judged by the **unique index** alone, unless a row lock serializes the writers. Catch the violation and check the constraint name, rather than pre-checking, so two requests at once cannot both succeed. Where a lock admits one writer at a time (salary entries under the employee row lock), the pure validator may judge it instead, with the index as a backstop.
 

@@ -276,3 +276,58 @@ I tested slice 3 by hand in the browser, then built slice 4: a CSV loader and th
 ### Lesson
 
 A test passing is not a proof. The tenure test passed with the feature switched off, half the time, by chance. Breaking the code and asking why it did not fail found it, and the fix was a margin the noise cannot fake.
+
+## Session 6: slice 5, the employee directory (24 Oct 2026)
+
+### What we did
+
+Slice 5 end to end: a directory at `/employees` with search, filters, sort and paging over the 10,000 seeded employees, through the API and Angular. I told the AI to build it without asking me anything once the spec was approved, so after five design decisions it wrote a spec and a plan and then ran every task on its own, test first, breaking the code on purpose to prove each test. It could not commit, so it handed me one command per task. Before building it also measured the two ways of computing the current salary and the search on my real data.
+
+### Prompts (summarized)
+
+| Prompt | Outcome |
+|---|---|
+| "start slice 5" | Classified as architectural, then five decisions one at a time |
+| "A" (twice), "A", "A", "B" | A read-side `directory` package that joins in SQL, a lateral join for the current salary, a case-insensitive contains search with escaping, filters and sort kept in the URL, and the directory at its own route with home linking to it |
+| "approved, dont ask anything implemnent and let me know the plan" | The plan, then all seven tasks in one run, ending in a real run on my database and a real browser |
+
+### What the AI got wrong or I had to correct
+
+| What happened | What I did and why |
+|---|---|
+| The AI expected the lateral join to need only 20 salary lookups on the default view. The measurement showed all 10,014, because sorting by name has no index. | The decision was argued from clarity and scaling, not speed. The measured numbers went into the trade-offs, with the claim that was wrong. |
+| A test of "no where clause" failed because the salary subquery has its own `where`. A country sort order I expected was wrong, and it also showed that several sorts gave the same order, so swapping two sort expressions would have passed. | Both were fixed in the tests. Each sort field now has a different order in the test data. |
+| The web slice test failed everywhere because the shared login needs a `Clock` bean. | It was a setup error, found by reading the real error. The fix copies what the other web slices do. |
+| A mutation survived: a search clause with an extra `or` in front. Another survived on trimming a country, and on an id of zero. | Each got a stronger assertion or a new test, and was proved again. |
+| Many frontend mutations made 13 of 18 tests fail for a one-line change. A failed test left an open request, and the next tests failed on the leftover. | It only happens after a real failure, but it makes a whole-file run a poor proof. Each mutation was proved against its single targeted test instead. |
+| The first real-browser run failed step 10: after Back, the first row was not the one the script had recorded. | The AI checked before blaming the app. The script read page 1's rows while page 2 was still loading. The script now waits for each request, and all 12 steps passed. |
+| The directory ran flush against the left edge of the screen, unlike every other page. | The AI looked at the screenshot. It now has a centered container with a 16px gutter, and the table scrolls inside its own box on a phone. |
+
+### Decisions I made, and the reasoning
+
+- **A read-side package, not row-by-row calls:** the directory has to filter and sort by the current salary in the database. The boundary rule now has one stated exception, for read models.
+- **A lateral join for the current salary:** it costs one index probe per employee. The window function was a millisecond faster, which is noise.
+- **Search escapes `%` and `_`:** underscores are common in real emails, and a typed `%` would otherwise match every row.
+- **The state lives in the URL:** Back and Forward work, and a link can be shared. A reload still logs you out, so returning to the requested page after login is a separate change I left out.
+- **The "Back to directory" link goes to the default view:** the browser's Back button restores your filters, and the link does not.
+- **No new index and no migration:** the numbers did not call for one.
+
+### What was verified, not assumed
+
+| Question | Finding |
+|---|---|
+| How fast is the directory on 10,014 employees? | 7 to 35 ms through the real endpoint. The default view is 30.6 ms at the median, the deep page 34.5 ms. |
+| Does it hide anyone? | No. `status=ALL` returns 10,014, the same as the table. |
+| Is the search right? | `rao` finds 487, the same as the plain SQL count. A literal `%` matches nothing, and a hostile text returns 200 with no matches and leaves the table intact. |
+| Does the currency filter follow the current salary? | Yes. 2,982 are in India but 2,979 are paid in INR, because three test employees now have a salary in another currency. |
+| Does it work in a real browser? | Yes. Twelve steps passed: open, search, filter, a sort that needs a currency, paging, opening an employee, browser Back restoring the view, and the empty state. Zero console errors. |
+| Does it fit a phone? | Yes. The filters stack, and the page does not scroll sideways. |
+
+### What I would do differently
+
+- Put the "wait for the request" helper in the browser script from the start. I lost a run to a script race.
+- Give each sort field a different order in the test data from the first draft.
+
+### Lesson
+
+When many tests fail for a one-line change, the first failure is the signal and the rest may be noise. Reading the actual error showed a leftover request, and running each mutation against its one test gave a clean proof.
