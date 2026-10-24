@@ -331,3 +331,58 @@ Slice 5 end to end: a directory at `/employees` with search, filters, sort and p
 ### Lesson
 
 When many tests fail for a one-line change, the first failure is the signal and the rest may be noise. Reading the actual error showed a leftover request, and running each mutation against its one test gave a clean proof.
+
+## Session 7: slice 6, edit, terminate and delete an employee (24 Oct 2026)
+
+### What we did
+
+Slice 6 end to end: editing an employee's profile, recording that someone left, deleting a record entered by mistake, and the loader and the seed carrying leavers. This time I told the AI not to ask me for permission and to complete the work itself. It made the design decisions alone and wrote them, with the reasons and the alternatives it rejected, into the spec for me to review afterwards. It then wrote a plan of seven tasks and ran them all, test first, breaking the code on purpose to prove each test. Its attempts to commit were refused by the permission system, so it did not work around that and left the commits to me.
+
+### Prompts (summarized)
+
+| Prompt | Outcome |
+|---|---|
+| "done start slice 6" | The AI read the design and the real code and began with the first decision |
+| "dont ask permission for this session, complete yourself" | Twelve decisions made and recorded in the spec, then the plan and all seven tasks in one run |
+
+### What the AI got wrong or I had to correct
+
+| What happened | What I did and why |
+|---|---|
+| The first mutations on `Employee` deleted an assignment to a required column, so 24 tests failed at once. That proves nothing about the update path. | The AI saw that nearly every test failed and redid them so only the update path was wrong: the update kept the old department, or the old hire date. |
+| My race test sent every update with another employee's email, so the first thing it hit was "email already exists", not the race. | The error message said so. The test now gives each subject its own email, and ten rounds give exactly one winner each time. |
+| A text-block replace never matched because the text block strips its indentation, so the "missing version" test removed nothing. A helper named `put` hid the static import of `put`. | Fixed with a whitespace-tolerant replace and a rename. Both were found by reading the first failure. |
+| A rule that ran after the save would have shown a termination before the hire date as a database error, because a check constraint fires at flush. | Found while designing, not by a failing test. The rules now run before anything is written, and a test shows the rule code and no database error. It is recorded in the skill. |
+| The real-browser script failed three steps. Step 12's dialog text was read before it had rendered, and steps 8 and 9 read an old banner. | The same race as in slice 5, which I should have avoided. The script now waits for the expected text, and all 18 steps passed. The app had been right every time. |
+| A signature change left four lines over 120 characters, and I ran a `cd` one folder too shallow. | The backend gate caught the lines, and the missing output showed the folder. Both were fixed. |
+
+### Decisions the AI made on its own, for me to review
+
+- **Terminating is setting the termination date** in the edit, with no separate endpoint. Clearing it reinstates the person.
+- **The version is checked under the row lock,** and a stale one is a `409 VERSION_CONFLICT`. A salary change does not bump the version.
+- **The rules run before the write,** with an `EmploymentPeriod(hireDate, terminationDate)`, and on every update.
+- **Delete takes the version as a query parameter** and asks for confirmation in a dialog.
+- **A stale edit shows a banner and "Reload", and discards the typed changes.**
+- **The seed makes about 8% leavers,** each with a salary dated at their last anniversary on or before they left.
+- **Known limit:** terminating an employee with a future-dated raise is refused until slice 7 can delete an entry.
+
+Making these without my check was my choice for speed. The cost is that I have not argued each one, and I should read decisions 24 to 29 in `docs/design.md` before I rely on them.
+
+### What was verified, not assumed
+
+| Question | Finding |
+|---|---|
+| Does the version check hold under a race? | Two updates with the same version, ten rounds, gave one winner and one conflict each time. Removing the lock makes the test fail. |
+| Does the seed with leavers load? | In a scratch database I created and dropped: 10,000 rows, 0 rejected, 33.1 s, 781 leavers (7.8%), none with a salary after they left. |
+| Does it work in a real browser? | Yes. Eighteen steps: edit, terminate, the Former filter, a raise after the termination refused, a termination before the hire date refused, a stale form refused with Reload, delete with confirmation and Cancel. |
+| Is a broken rule a `422` and not a `500`? | Yes, for a termination before the hire date, over HTTP and in a test. |
+| What did it touch in my data? | One employee it created and deleted, and the eight `real-run-` test employees from its earlier browser runs, which it deleted through the new endpoint. The seed employees were not touched. |
+
+### What I would do differently
+
+- Write the "wait for the text" helper into the browser script from the first draft.
+- Ask the AI to list its decisions as a short table at the top of the spec, so I can review them in one place.
+
+### Lesson
+
+Doing the work without asking makes it fast, and it moves the review to afterwards. The rules and the proofs stayed the same, and the decisions are written down with their reasons, so the review is possible. It still has to happen.

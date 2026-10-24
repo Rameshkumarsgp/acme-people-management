@@ -43,7 +43,8 @@ Every view can be filtered by country, department, and job title. Measures are h
 - **Gender/diversity pay equity:** we hold no such data, and it needs sensitivity handling.
 - **Payroll, payslips, tax, and bank transfers:** need financial and regulatory workflows.
 - **Upload screen, `.xlsx` parsing and export:** migration is a one-time CSV load from the command line. An upload screen with column mapping and row-level error review is a feature of its own, and exporting salary data widens the surface where it can leak.
-- **Leavers in the CSV load, until slice 6:** the loader rejects a row with a termination date. Dates must be ISO and amounts plain numbers, so a sheet saved from Excel with local dates needs reformatting first. Loading the same file twice rejects every row.
+- **Limits of the CSV load:** dates must be ISO and amounts plain numbers, so a sheet saved from Excel with local dates needs reformatting first. Loading the same file twice rejects every row.
+- **Terminating an employee who has a future-dated raise:** refused until a salary entry can be deleted (slice 7), because no entry may be dated after the termination date.
 - **Maintaining departments and job titles in the app:** these are standardized reference data managed through migrations. HR cannot add a title without a code change.
 
 ## Open questions and working assumptions

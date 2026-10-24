@@ -26,6 +26,8 @@ How a backend slice is built here, in order. Coding rules (Java style, naming, i
 - A rule that needs no database lives in `<feature>/rules/` with no Spring. It throws one unchecked exception that carries a stable code (an enum). Add one rule and one test at a time, test first.
 - Time comes from an injected `Clock` at the edge, and `today` is passed down as a parameter. Rules never call `now()`.
 
+- **Run the rules before the first write.** A database check (for example `termination_date >= hire_date`) fires at flush, so a rule that runs after the save is reported as a `500` and not as its `422` code. Validate, then write.
+
 ## 3. Layout of a feature package
 
 ```

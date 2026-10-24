@@ -42,7 +42,7 @@ Decisions where we chose one cost over another, with the cost stated. Performanc
 - **Titles and departments must already exist.** They are a standardized list that HR cannot extend, so a spreadsheet with free-text titles has those rows rejected for unknown values. The report lists each rejected row with its field (it does not group them), and adding a title needs a migration. For a real cutover this limitation may not hold, and it ties back to the question to Incubyte about standardized versus free-text titles.
 - Only the current salary is loaded. Salary history needs a second file.
 - HR must export the sheet to CSV first.
-- Leavers cannot be loaded until slice 6. A row with a termination date is rejected with a clear reason.
+- A leaver is loaded with their termination date, and a row is rejected when the date is before the hire date or a first salary falls after it.
 - Dates must be ISO, and amounts must be plain numbers with a dot (no thousands separators). Excel's local formats are rejected, not guessed.
 
 **Measured.** Loading the 10,000-employee seed through the loader, one transaction per row through `EmployeeService.create`, on the owner's MacBook Pro with PostgreSQL 17 in Docker on the same machine, 23 October 2026:
@@ -75,7 +75,7 @@ The load is well under the one-minute line set in the slice 4 plan, so writes ar
 - **The figures are invented.** The factors and the units-per-USD rates are plausible, not market data, and the product never converts currency. Nothing in the insights should be read as real pay.
 - **The same file comes out only for the same day.** Hire dates are relative to today, which the generator takes from the clock. Two runs on one day give identical bytes (checked across two separate processes). Runs on different days shift every date.
 - **No salary history.** The CSV carries one entry per employee, so the seed has none. Slice 3's tests and the UI cover history.
-- **No leavers until slice 6.**
+- **About 8% of the seed are leavers**, each leaving on or after their hire date and before today. The seed with leavers loads 10,000 rows with none rejected in about 33 seconds, the same as before.
 - **The generator's table can drift from the reference data.** An integration test checks titles, departments, countries and currency codes in both directions. It cannot check which currency a country uses, because the schema does not say.
 
 **Related.** [design.md](design.md), decisions 16 to 19.
@@ -171,3 +171,27 @@ A plain contains-search on name and email took about 5.5 ms whether it matched 4
 | A trigram index for search | At 10,000 rows it speeds up nothing a person can notice, and it needs an extension, a migration and an index to maintain. |
 
 **Related.** [design.md](design.md), decisions 20 to 23 and "Directory filters and sort".
+
+## Editing, terminating and deleting an employee
+
+**Decision.** Terminating is setting a termination date in the profile edit, there is no separate action, and the same edit can clear it. A profile update and a delete both carry the `version` the person saw, read the employee under the row lock, and refuse a stale one with `409 VERSION_CONFLICT`. The salary timeline is revalidated against the new dates before anything is written.
+
+**Why.** One path to the rules means one place for them to be wrong. Checking the version under the lock means a check cannot be raced, which a test shows by firing two updates with the same version ten times and getting one winner each time.
+
+**What it costs.**
+
+- **A stale edit discards the user's changes.** The banner offers Reload, which loads the latest values and drops what was typed. Merging would hide someone else's change.
+- **Terminating an employee who has a future-dated raise is refused**, because no entry may be dated after the termination date. Until slice 7 adds editing and deleting an entry, there is no way in the app to remove that entry, so HR must wait or ask for a change. The message says why.
+- **Delete is irreversible** and leaves no record that it happened, as the hard-delete note above says.
+- **The version bumps only on a profile change.** A salary change does not bump it, so an edit form opened before a raise still saves. That is safe because the profile does not depend on the salary amounts, and the timeline is checked again on save.
+
+**Alternatives rejected.**
+
+| Option | Why not |
+|---|---|
+| A separate "Terminate" endpoint | The same checks again, a second path to one rule. |
+| A partial `PATCH` | "Absent" and "set to empty" would need different meanings for the nullable termination date. |
+| Relying only on Hibernate's `@Version` exception | It fires at flush, after the rules have already run on stale data. |
+| Merging a stale edit automatically | It would hide someone else's change. |
+
+**Related.** [design.md](design.md), decisions 24 to 29.
