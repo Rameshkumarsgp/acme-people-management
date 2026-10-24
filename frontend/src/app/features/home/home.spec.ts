@@ -38,6 +38,17 @@ describe('Home', () => {
     expect(link?.textContent).toContain('New employee');
   });
 
+  it('links to the employee directory', () => {
+    const link = page.querySelector<HTMLAnchorElement>('a[href="/employees"]');
+
+    expect(link?.textContent).toContain('Employee directory');
+  });
+
+  it('says only the insights are still to come, because the directory is here', () => {
+    expect(page.textContent).toContain('The salary insights will appear here.');
+    expect(page.textContent).not.toContain('The employee directory and');
+  });
+
   it('ends the session and returns to the login page on sign out', () => {
     page.querySelector<HTMLButtonElement>('button')!.click();
 

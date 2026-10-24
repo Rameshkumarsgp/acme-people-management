@@ -127,6 +127,17 @@ describe('EmployeeDetail', () => {
     });
   });
 
+  it('links back to the directory and to the home page', async () => {
+    answer(EMPLOYEE);
+
+    await until(() => {
+      expect(page.querySelector('a[href="/employees"]')?.textContent).toContain(
+        'Back to directory',
+      );
+      expect(page.querySelector('a[href="/"]')?.textContent).toContain('Back to home');
+    });
+  });
+
   it('opens the add salary dialog with the employee, the currencies and the current currency', async () => {
     const open = vi
       .spyOn(TestBed.inject(MatDialog), 'open')
