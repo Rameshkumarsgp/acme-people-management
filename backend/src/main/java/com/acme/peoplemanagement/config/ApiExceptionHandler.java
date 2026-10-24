@@ -1,5 +1,6 @@
 package com.acme.peoplemanagement.config;
 
+import com.acme.peoplemanagement.directory.errors.InvalidDirectoryRequestException;
 import com.acme.peoplemanagement.employee.errors.EmailAlreadyExistsException;
 import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
 import com.acme.peoplemanagement.employee.errors.UnknownReferenceException;
@@ -50,6 +51,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(CurrencyRequiredException.class)
     ProblemDetail currencyRequired(final CurrencyRequiredException exception) {
+        return invalidRequest(List.of(new FieldProblem(exception.field(), exception.getMessage())));
+    }
+
+    @ExceptionHandler(InvalidDirectoryRequestException.class)
+    ProblemDetail invalidDirectoryRequest(final InvalidDirectoryRequestException exception) {
         return invalidRequest(List.of(new FieldProblem(exception.field(), exception.getMessage())));
     }
 
