@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../api/api-base-url';
@@ -44,6 +44,53 @@ export interface AddSalaryEntryRequest {
   currency?: string;
 }
 
+export type DirectoryStatus = 'ACTIVE' | 'FORMER' | 'ALL';
+
+/** What the directory asks for. An empty text or a null id means the filter is not set. */
+export interface DirectoryQuery {
+  q: string;
+  countryCode: string;
+  departmentId: number | null;
+  jobTitleId: number | null;
+  currency: string;
+  status: DirectoryStatus;
+  sort: string;
+  page: number;
+  size: number;
+}
+
+export const DEFAULT_DIRECTORY_QUERY: DirectoryQuery = {
+  q: '',
+  countryCode: '',
+  departmentId: null,
+  jobTitleId: null,
+  currency: '',
+  status: 'ACTIVE',
+  sort: 'fullName,asc',
+  page: 0,
+  size: 20,
+};
+
+export interface DirectoryRow {
+  id: number;
+  fullName: string;
+  email: string;
+  department: string;
+  jobTitle: string;
+  country: string;
+  status: 'ACTIVE' | 'FORMER';
+  hireDate: string;
+  currentSalary: { amountMinor: number; currency: string };
+}
+
+export interface DirectoryPage {
+  content: DirectoryRow[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EmployeeApi {
   private readonly http = inject(HttpClient);
@@ -55,6 +102,30 @@ export class EmployeeApi {
 
   get(id: number): Promise<Employee> {
     return firstValueFrom(this.http.get<Employee>(`${this.apiBaseUrl}/employees/${id}`));
+  }
+
+  listEmployees(query: DirectoryQuery): Promise<DirectoryPage> {
+    let params = new HttpParams()
+      .set('status', query.status)
+      .set('sort', query.sort)
+      .set('page', query.page)
+      .set('size', query.size);
+    if (query.q !== '') {
+      params = params.set('q', query.q);
+    }
+    if (query.countryCode !== '') {
+      params = params.set('countryCode', query.countryCode);
+    }
+    if (query.departmentId !== null) {
+      params = params.set('departmentId', query.departmentId);
+    }
+    if (query.jobTitleId !== null) {
+      params = params.set('jobTitleId', query.jobTitleId);
+    }
+    if (query.currency !== '') {
+      params = params.set('currency', query.currency);
+    }
+    return firstValueFrom(this.http.get<DirectoryPage>(`${this.apiBaseUrl}/employees`, { params }));
   }
 
   listSalaryEntries(employeeId: number): Promise<SalaryEntry[]> {

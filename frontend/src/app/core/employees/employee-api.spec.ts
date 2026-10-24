@@ -4,6 +4,9 @@ import { TestBed } from '@angular/core/testing';
 import {
   AddSalaryEntryRequest,
   CreateEmployeeRequest,
+  DEFAULT_DIRECTORY_QUERY,
+  DirectoryPage,
+  DirectoryQuery,
   EmployeeApi,
   SalaryEntry,
 } from './employee-api';
@@ -78,5 +81,57 @@ describe('EmployeeApi', () => {
     call.flush({ id: 5 });
 
     expect((await adding).id).toBe(5);
+  });
+
+  describe('listEmployees', () => {
+    const page: DirectoryPage = {
+      content: [],
+      page: 2,
+      size: 50,
+      totalElements: 120,
+      totalPages: 3,
+    };
+
+    it('sends the filters, sort and page as query parameters and returns the page', async () => {
+      const query: DirectoryQuery = {
+        q: 'rao',
+        countryCode: 'IN',
+        departmentId: 3,
+        jobTitleId: 12,
+        currency: 'INR',
+        status: 'ALL',
+        sort: 'salary,desc',
+        page: 2,
+        size: 50,
+      };
+      const listing = api.listEmployees(query);
+      const call = http.expectOne((request) => request.url === '/api/employees');
+      call.flush(page);
+
+      expect(call.request.method).toBe('GET');
+      expect(call.request.params.get('q')).toBe('rao');
+      expect(call.request.params.get('countryCode')).toBe('IN');
+      expect(call.request.params.get('departmentId')).toBe('3');
+      expect(call.request.params.get('jobTitleId')).toBe('12');
+      expect(call.request.params.get('currency')).toBe('INR');
+      expect(call.request.params.get('status')).toBe('ALL');
+      expect(call.request.params.get('sort')).toBe('salary,desc');
+      expect(call.request.params.get('page')).toBe('2');
+      expect(call.request.params.get('size')).toBe('50');
+      expect(await listing).toEqual(page);
+    });
+
+    it('leaves out the filters that are empty and always sends status, sort, page and size', async () => {
+      const listing = api.listEmployees(DEFAULT_DIRECTORY_QUERY);
+      const call = http.expectOne((request) => request.url === '/api/employees');
+      call.flush(page);
+      await listing;
+
+      expect(call.request.params.keys().sort()).toEqual(['page', 'size', 'sort', 'status']);
+      expect(call.request.params.get('status')).toBe('ACTIVE');
+      expect(call.request.params.get('sort')).toBe('fullName,asc');
+      expect(call.request.params.get('page')).toBe('0');
+      expect(call.request.params.get('size')).toBe('20');
+    });
   });
 });

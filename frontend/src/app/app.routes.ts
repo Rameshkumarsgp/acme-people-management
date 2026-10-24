@@ -13,6 +13,13 @@ export const routes: Routes = [
     loadComponent: () => import('./features/home/home').then((module) => module.Home),
   },
   {
+    path: 'employees',
+    pathMatch: 'full',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/directory/directory').then((module) => module.Directory),
+  },
+  {
     path: 'employees/new',
     canActivate: [authGuard],
     loadComponent: () =>

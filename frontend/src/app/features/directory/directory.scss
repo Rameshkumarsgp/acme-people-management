@@ -1,0 +1,35 @@
+.directory {
+  max-width: 80rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  h2 {
+    flex: 1;
+    margin: 0;
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.employees {
+  width: 100%;
+}
+
+.empty {
+  margin: 1rem 0;
+}
