@@ -13,6 +13,7 @@ import com.acme.peoplemanagement.reference.CurrencyResponse;
 import com.acme.peoplemanagement.reference.DepartmentResponse;
 import com.acme.peoplemanagement.reference.JobTitleResponse;
 import com.acme.peoplemanagement.reference.ReferenceLookup;
+import com.acme.peoplemanagement.salary.rules.SalaryRuleCode;
 import com.acme.peoplemanagement.salary.rules.SalaryRuleViolation;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -68,6 +69,7 @@ class EmployeeCsvLoader {
                 row.fullName(),
                 row.email(),
                 row.hireDate(),
+                row.terminationDate(),
                 departmentId(row.department()),
                 jobTitleId(row.jobTitle()),
                 row.countryCode(),
@@ -95,6 +97,11 @@ class EmployeeCsvLoader {
                 });
     }
 
+    /** The column a broken rule is about: the termination date, or else the date of the first salary. */
+    private static String fieldOf(final SalaryRuleCode code) {
+        return code == SalaryRuleCode.TERMINATION_BEFORE_HIRE_DATE ? "terminationDate" : "salaryEffectiveDate";
+    }
+
     private void create(final CreateEmployeeRequest request) {
         try {
             employeeService.create(request);
@@ -104,7 +111,7 @@ class EmployeeCsvLoader {
         } catch (UnknownReferenceException exception) {
             throw new RowRejectedException(exception.field(), exception.getMessage());
         } catch (SalaryRuleViolation exception) {
-            throw new RowRejectedException("salaryEffectiveDate", exception.code() + ": " + exception.getMessage());
+            throw new RowRejectedException(fieldOf(exception.code()), exception.code() + ": " + exception.getMessage());
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.acme.peoplemanagement.salary;
 
 import com.acme.peoplemanagement.salary.errors.CurrencyRequiredException;
+import com.acme.peoplemanagement.salary.rules.EmploymentPeriod;
 import com.acme.peoplemanagement.salary.rules.HistoryEntry;
 import com.acme.peoplemanagement.salary.rules.IdentifiedEntry;
 import com.acme.peoplemanagement.salary.rules.Money;
@@ -30,11 +31,16 @@ public class SalaryService {
         this.salaryEntryRepository = salaryEntryRepository;
     }
 
+    /** Checks a first entry before any row exists, so a rule is reported before the database's own checks. */
+    public void checkFirstEntry(final EmploymentPeriod period, final TimelineEntry entry, final LocalDate today) {
+        validator.validate(period, List.of(entry), today);
+    }
+
     /** Joins the caller's transaction, so a broken rule also undoes the employee row. */
     @Transactional
     public void recordFirstEntry(
-            final long employeeId, final LocalDate hireDate, final TimelineEntry entry, final LocalDate today) {
-        validator.validate(hireDate, List.of(entry), today);
+            final long employeeId, final EmploymentPeriod period, final TimelineEntry entry, final LocalDate today) {
+        checkFirstEntry(period, entry, today);
         salaryEntryRepository.save(new SalaryEntry(employeeId, entry));
     }
 
@@ -51,16 +57,25 @@ public class SalaryService {
      */
     @Transactional
     public HistoryEntry addEntry(
-            final long employeeId, final LocalDate hireDate, final NewSalaryEntry newEntry, final LocalDate today) {
+            final long employeeId,
+            final EmploymentPeriod period,
+            final NewSalaryEntry newEntry,
+            final LocalDate today) {
         final List<IdentifiedEntry> stored = storedEntriesOf(employeeId);
         final TimelineEntry candidate = new TimelineEntry(
                 newEntry.effectiveDate(), new Money(newEntry.amountMinor(), newEntry.currencyCode()));
         // The rules read dates only, so they run before the currency is filled in: a date that cannot be
         // used is reported as that, and not as a missing currency.
-        validator.validate(hireDate, timelineWith(stored, candidate), today);
+        validator.validate(period, timelineWith(stored, candidate), today);
         final TimelineEntry added = withResolvedCurrency(candidate, stored);
         final long id = salaryEntryRepository.save(new SalaryEntry(employeeId, added)).id();
         return historyEntryWithId(id, stored, added, today);
+    }
+
+    /** Checks the stored timeline against an employment period, for a change to the hire or termination date. */
+    @Transactional(readOnly = true)
+    public void revalidate(final long employeeId, final EmploymentPeriod period, final LocalDate today) {
+        validator.validate(period, storedEntriesOf(employeeId).stream().map(IdentifiedEntry::entry).toList(), today);
     }
 
     @Transactional(readOnly = true)

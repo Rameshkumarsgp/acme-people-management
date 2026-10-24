@@ -15,6 +15,7 @@ public final class SeedGenerator {
 
     private static final int HIRE_WINDOW_DAYS = 10 * 365;
     private static final int TOTAL_WEIGHT_PERCENT = 100;
+    private static final int LEAVER_PERCENT = 8;
 
     private static final List<String> FIRST_NAMES = List.of(
             "Asha", "Ravi", "Priya", "Arjun", "Meera", "Kiran", "Sanjay", "Anita", "John", "Emma",
@@ -41,12 +42,22 @@ public final class SeedGenerator {
         final TitlePay title = pick(PayModel.titles(), random);
         final CountryPay country = pickCountry(random);
         final LocalDate hireDate = today.minusDays(random.nextInt(HIRE_WINDOW_DAYS));
-        final int tenureYears = (int) ChronoUnit.YEARS.between(hireDate, today);
         final int noisePercent = random.nextInt(2 * PayModel.MAX_NOISE_PERCENT + 1) - PayModel.MAX_NOISE_PERCENT;
+        final LocalDate terminationDate = terminationDate(hireDate, today, random);
+        final LocalDate end = terminationDate == null ? today : terminationDate;
+        final int tenureYears = (int) ChronoUnit.YEARS.between(hireDate, end);
         final long salary = PayModel.majorSalary(title, country, tenureYears, noisePercent);
         return new EmployeeRow(first + " " + last, email(first, last, number), hireDate, title.department(),
                 title.title(), country.code(), country.currency(), Long.toString(salary),
-                hireDate.plusYears(tenureYears));
+                hireDate.plusYears(tenureYears), terminationDate);
+    }
+
+    /** About one in twelve employees has left: on or after the hire date and before today. Both draws always happen. */
+    private static LocalDate terminationDate(final LocalDate hireDate, final LocalDate today, final Random random) {
+        final boolean leaver = random.nextInt(TOTAL_WEIGHT_PERCENT) < LEAVER_PERCENT;
+        final int daysEmployed = (int) ChronoUnit.DAYS.between(hireDate, today);
+        final int offset = random.nextInt(Math.max(daysEmployed, 1));
+        return leaver && daysEmployed > 0 ? hireDate.plusDays(offset) : null;
     }
 
     private static String email(final String first, final String last, final int number) {

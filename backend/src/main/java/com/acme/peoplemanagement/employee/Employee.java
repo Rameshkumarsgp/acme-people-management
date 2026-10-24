@@ -52,9 +52,19 @@ class Employee {
     }
 
     Employee(final EmployeeProfile profile) {
+        assign(profile);
+    }
+
+    /** Replaces the profile. The version is bumped by JPA when the change is written. */
+    void applyProfile(final EmployeeProfile profile) {
+        assign(profile);
+    }
+
+    private void assign(final EmployeeProfile profile) {
         this.fullName = profile.fullName();
         this.email = profile.email();
         this.hireDate = profile.hireDate();
+        this.terminationDate = profile.terminationDate();
         this.departmentId = profile.departmentId();
         this.jobTitleId = profile.jobTitleId();
         this.countryCode = profile.countryCode();

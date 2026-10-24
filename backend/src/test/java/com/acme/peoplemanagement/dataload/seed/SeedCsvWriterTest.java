@@ -40,7 +40,7 @@ class SeedCsvWriterTest {
     @Test
     void quotesANameThatHoldsAComma() throws IOException {
         final EmployeeRow row = new EmployeeRow("Rao, Asha", "asha@acme.example", LocalDate.of(2024, 4, 1),
-                "Engineering", "Software Engineer", "IN", "INR", "1250000", null);
+                "Engineering", "Software Engineer", "IN", "INR", "1250000", null, null);
 
         final List<EmployeeCsv.Line> lines = EmployeeCsv.read(new StringReader(write(List.of(row))));
 

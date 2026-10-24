@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class EmployeeRowTest {
 
     private static final EmployeeRow ROW = new EmployeeRow("Asha Rao", "asha@acme.example", LocalDate.of(2024, 4, 1),
-            "Engineering", "Software Engineer", "IN", "INR", "1250000.00", LocalDate.of(2025, 4, 1));
+            "Engineering", "Software Engineer", "IN", "INR", "1250000.00", LocalDate.of(2025, 4, 1), null);
 
     @Test
     void parsesAFullRow() {
@@ -29,7 +29,7 @@ class EmployeeRowTest {
     @Test
     void writesAnEmptySalaryDateAsAnEmptyCell() {
         final EmployeeRow withoutDate = new EmployeeRow("Asha Rao", "asha@acme.example", LocalDate.of(2024, 4, 1),
-                "Engineering", "Software Engineer", "IN", "INR", "1250000.00", null);
+                "Engineering", "Software Engineer", "IN", "INR", "1250000.00", null, null);
 
         assertThat(withoutDate.cells()).containsEntry(Column.SALARY_EFFECTIVE_DATE, "");
         assertThat(withoutDate.cells()).containsEntry(Column.TERMINATION_DATE, "");
@@ -60,11 +60,34 @@ class EmployeeRowTest {
     }
 
     @Test
-    void rejectsATerminationDateUntilLeaversAreSupported() {
+    void parsesATerminationDate() {
         final Map<Column, String> cells = ROW.cells();
         cells.put(Column.TERMINATION_DATE, "2025-12-31");
 
-        assertRejected(cells, "terminationDate", "Termination dates are not supported yet.");
+        assertThat(EmployeeRow.parse(cells).terminationDate()).isEqualTo(LocalDate.of(2025, 12, 31));
+    }
+
+    @Test
+    void leavesTheTerminationDateEmptyWhenTheCellIsEmpty() {
+        assertThat(EmployeeRow.parse(ROW.cells()).terminationDate()).isNull();
+    }
+
+    @Test
+    void rejectsATerminationDateThatIsNotInIsoFormat() {
+        final Map<Column, String> cells = ROW.cells();
+        cells.put(Column.TERMINATION_DATE, "31/12/2025");
+
+        assertRejected(cells, "terminationDate", "Dates must look like 2024-04-01 (year-month-day).");
+    }
+
+    @Test
+    void writesATerminationDateAsACellAndReadsItBack() {
+        final EmployeeRow leaver = new EmployeeRow("Leo Leaver", "leo@acme.example", LocalDate.of(2024, 4, 1),
+                "Engineering", "Software Engineer", "IN", "INR", "1250000.00", LocalDate.of(2024, 4, 1),
+                LocalDate.of(2025, 12, 31));
+
+        assertThat(leaver.cells()).containsEntry(Column.TERMINATION_DATE, "2025-12-31");
+        assertThat(EmployeeRow.parse(leaver.cells())).isEqualTo(leaver);
     }
 
     @Test

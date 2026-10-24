@@ -15,15 +15,12 @@ public record EmployeeRow(
         String countryCode,
         String currency,
         String salary,
-        LocalDate salaryEffectiveDate) {
+        LocalDate salaryEffectiveDate,
+        LocalDate terminationDate) {
 
     private static final String DATE_HINT = "Dates must look like 2024-04-01 (year-month-day).";
 
     public static EmployeeRow parse(final Map<Column, String> cells) {
-        if (!cell(cells, Column.TERMINATION_DATE).isEmpty()) {
-            throw new RowRejectedException(
-                    Column.TERMINATION_DATE.header(), "Termination dates are not supported yet.");
-        }
         return new EmployeeRow(
                 required(cells, Column.FULL_NAME),
                 required(cells, Column.EMAIL),
@@ -33,7 +30,8 @@ public record EmployeeRow(
                 required(cells, Column.COUNTRY_CODE),
                 required(cells, Column.CURRENCY),
                 required(cells, Column.SALARY),
-                optionalDate(cells, Column.SALARY_EFFECTIVE_DATE));
+                optionalDate(cells, Column.SALARY_EFFECTIVE_DATE),
+                optionalDate(cells, Column.TERMINATION_DATE));
     }
 
     public Map<Column, String> cells() {
@@ -47,7 +45,7 @@ public record EmployeeRow(
         cells.put(Column.CURRENCY, currency);
         cells.put(Column.SALARY, salary);
         cells.put(Column.SALARY_EFFECTIVE_DATE, salaryEffectiveDate == null ? "" : salaryEffectiveDate.toString());
-        cells.put(Column.TERMINATION_DATE, "");
+        cells.put(Column.TERMINATION_DATE, terminationDate == null ? "" : terminationDate.toString());
         return cells;
     }
 

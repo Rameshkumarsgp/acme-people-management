@@ -7,6 +7,8 @@ import com.acme.peoplemanagement.employee.api.AddSalaryEntryRequest;
 import com.acme.peoplemanagement.employee.api.SalaryEntryResponse;
 import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
 import com.acme.peoplemanagement.employee.errors.UnknownReferenceException;
+import com.acme.peoplemanagement.salary.rules.SalaryRuleCode;
+import com.acme.peoplemanagement.salary.rules.SalaryRuleViolation;
 import com.acme.peoplemanagement.support.IntegrationTest;
 import com.acme.peoplemanagement.support.TestEmployees;
 import java.time.LocalDate;
@@ -58,6 +60,27 @@ class EmployeeSalaryServiceIntegrationTest {
         assertThat(added.current()).isTrue();
         assertThat(added.endDate()).isNull();
         assertThat(added.currency()).isEqualTo("INR");
+    }
+
+    @Test
+    void refusesARaiseDatedAfterTheEmployeeWasTerminated() {
+        final long leaver = employees.insert("Leaver", "leaver@acme.example", HIRE_DATE, LocalDate.of(2026, 10, 9));
+        employees.insertSalary(leaver, HIRE_DATE, 100L, "INR");
+
+        assertThatThrownBy(() -> employeeSalaryService.add(leaver, request("2026-10-10", 150L, "INR")))
+                .isInstanceOfSatisfying(SalaryRuleViolation.class,
+                        violation -> assertThat(violation.code()).isEqualTo(SalaryRuleCode.SALARY_AFTER_TERMINATION));
+        assertThat(employeeSalaryService.list(leaver)).hasSize(1);
+    }
+
+    @Test
+    void acceptsARaiseDatedOnTheLastDayOfAnEmployeeWhoLeft() {
+        final long leaver = employees.insert("Leaver", "lastday@acme.example", HIRE_DATE, LocalDate.of(2026, 10, 9));
+        employees.insertSalary(leaver, HIRE_DATE, 100L, "INR");
+
+        final SalaryEntryResponse added = employeeSalaryService.add(leaver, request("2026-10-09", 150L, "INR"));
+
+        assertThat(added.effectiveDate()).isEqualTo(LocalDate.of(2026, 10, 9));
     }
 
     @Test

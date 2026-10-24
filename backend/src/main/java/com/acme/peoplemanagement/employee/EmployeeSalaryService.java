@@ -6,6 +6,7 @@ import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
 import com.acme.peoplemanagement.employee.errors.UnknownReferenceException;
 import com.acme.peoplemanagement.reference.ReferenceLookup;
 import com.acme.peoplemanagement.salary.SalaryService;
+import com.acme.peoplemanagement.salary.rules.EmploymentPeriod;
 import com.acme.peoplemanagement.salary.rules.HistoryEntry;
 import com.acme.peoplemanagement.salary.rules.NewSalaryEntry;
 import java.time.Clock;
@@ -45,7 +46,7 @@ public class EmployeeSalaryService {
         verifyCurrencyExists(request.currency());
         final NewSalaryEntry newEntry =
                 new NewSalaryEntry(request.effectiveDate(), request.amountMinor(), request.currency());
-        return toResponse(salaryService.addEntry(employeeId, employee.hireDate(), newEntry, LocalDate.now(clock)));
+        return toResponse(salaryService.addEntry(employeeId, periodOf(employee), newEntry, LocalDate.now(clock)));
     }
 
     @Transactional(readOnly = true)
@@ -54,6 +55,10 @@ public class EmployeeSalaryService {
             throw new EmployeeNotFoundException(employeeId);
         }
         return salaryService.history(employeeId, LocalDate.now(clock)).stream().map(this::toResponse).toList();
+    }
+
+    private static EmploymentPeriod periodOf(final Employee employee) {
+        return new EmploymentPeriod(employee.hireDate(), employee.terminationDate());
     }
 
     private void verifyCurrencyExists(final String currency) {

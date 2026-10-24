@@ -17,45 +17,47 @@ class SalaryTimelineValidatorTest {
 
     @Test
     void acceptsAFirstEntryOnTheHireDate() {
-        assertAccepted(HIRE_DATE, List.of(entryOn(HIRE_DATE)));
+        assertAccepted(employedFrom(HIRE_DATE), List.of(entryOn(HIRE_DATE)));
     }
 
     @Test
     void rejectsAnEntryDatedBeforeTheHireDate() {
-        assertRejectedWith(SalaryRuleCode.SALARY_BEFORE_HIRE_DATE, HIRE_DATE, List.of(entryOn(HIRE_DATE.minusDays(1))));
+        assertRejectedWith(SalaryRuleCode.SALARY_BEFORE_HIRE_DATE, employedFrom(HIRE_DATE),
+                List.of(entryOn(HIRE_DATE.minusDays(1))));
     }
 
     @Test
     void rejectsAnEarlierEntryEvenWhenALaterOneIsOnTheHireDate() {
-        assertRejectedWith(SalaryRuleCode.SALARY_BEFORE_HIRE_DATE, HIRE_DATE,
+        assertRejectedWith(SalaryRuleCode.SALARY_BEFORE_HIRE_DATE, employedFrom(HIRE_DATE),
                 List.of(entryOn(HIRE_DATE.minusDays(1)), entryOn(HIRE_DATE)));
     }
 
     @Test
     void rejectsATimelineWhoseOnlyEntryIsInTheFuture() {
-        assertRejectedWith(SalaryRuleCode.NO_CURRENT_SALARY, HIRE_DATE, List.of(entryOn(TODAY.plusDays(1))));
+        assertRejectedWith(SalaryRuleCode.NO_CURRENT_SALARY, employedFrom(HIRE_DATE),
+                List.of(entryOn(TODAY.plusDays(1))));
     }
 
     @Test
     void rejectsAnEmptyTimeline() {
-        assertRejectedWith(SalaryRuleCode.NO_CURRENT_SALARY, HIRE_DATE, List.of());
+        assertRejectedWith(SalaryRuleCode.NO_CURRENT_SALARY, employedFrom(HIRE_DATE), List.of());
     }
 
     @Test
     void acceptsAnEntryDatedToday() {
-        assertAccepted(TODAY, List.of(entryOn(TODAY)));
+        assertAccepted(employedFrom(TODAY), List.of(entryOn(TODAY)));
     }
 
     @Test
     void acceptsAScheduledRaiseWhenAnEarlierEntryIsAlreadyCurrent() {
-        assertAccepted(HIRE_DATE, List.of(entryOn(HIRE_DATE), entryOn(TODAY.plusMonths(3))));
+        assertAccepted(employedFrom(HIRE_DATE), List.of(entryOn(HIRE_DATE), entryOn(TODAY.plusMonths(3))));
     }
 
     @Test
     void rejectsAFutureHireDateAndSaysWhy() {
         final LocalDate tomorrow = TODAY.plusDays(1);
 
-        assertThatThrownBy(() -> validator.validate(tomorrow, List.of(entryOn(tomorrow)), TODAY))
+        assertThatThrownBy(() -> validator.validate(employedFrom(tomorrow), List.of(entryOn(tomorrow)), TODAY))
                 .isInstanceOfSatisfying(SalaryRuleViolation.class,
                         violation -> assertThat(violation.code()).isEqualTo(SalaryRuleCode.NO_CURRENT_SALARY))
                 .hasMessageContaining("hire date");
@@ -63,31 +65,100 @@ class SalaryTimelineValidatorTest {
 
     @Test
     void rejectsTwoEntriesOnTheSameDate() {
-        assertRejectedWith(SalaryRuleCode.DUPLICATE_SALARY_DATE, HIRE_DATE,
+        assertRejectedWith(SalaryRuleCode.DUPLICATE_SALARY_DATE, employedFrom(HIRE_DATE),
                 List.of(entryOn(HIRE_DATE), entryOn(HIRE_DATE)));
     }
 
     @Test
     void acceptsEntriesOnDifferentDates() {
-        assertAccepted(HIRE_DATE, List.of(entryOn(HIRE_DATE), entryOn(HIRE_DATE.plusDays(1))));
+        assertAccepted(employedFrom(HIRE_DATE), List.of(entryOn(HIRE_DATE), entryOn(HIRE_DATE.plusDays(1))));
     }
 
     @Test
     void namesTheDateThatIsTaken() {
-        assertThatThrownBy(() -> validator.validate(HIRE_DATE,
+        assertThatThrownBy(() -> validator.validate(employedFrom(HIRE_DATE),
                 List.of(entryOn(HIRE_DATE), entryOn(HIRE_DATE)), TODAY))
                 .hasMessageContaining("2024-04-01");
     }
 
-    private void assertAccepted(final LocalDate hireDate, final List<TimelineEntry> timeline) {
-        assertThatCode(() -> validator.validate(hireDate, timeline, TODAY)).doesNotThrowAnyException();
+    @Test
+    void acceptsATerminationDateOnTheHireDate() {
+        assertAccepted(new EmploymentPeriod(HIRE_DATE, HIRE_DATE), List.of(entryOn(HIRE_DATE)));
+    }
+
+    @Test
+    void rejectsATerminationDateBeforeTheHireDate() {
+        assertRejectedWith(SalaryRuleCode.TERMINATION_BEFORE_HIRE_DATE,
+                new EmploymentPeriod(HIRE_DATE, HIRE_DATE.minusDays(1)), List.of(entryOn(HIRE_DATE)));
+    }
+
+    @Test
+    void reportsTheTerminationBeforeHireRuleFirstWhenAnEntryBreaksAnotherRuleToo() {
+        assertRejectedWith(SalaryRuleCode.TERMINATION_BEFORE_HIRE_DATE,
+                new EmploymentPeriod(HIRE_DATE, HIRE_DATE.minusDays(5)), List.of(entryOn(HIRE_DATE.minusDays(1))));
+    }
+
+    @Test
+    void saysWhyAndNamesBothDatesWhenTheTerminationIsTooEarly() {
+        assertThatThrownBy(() -> validator.validate(new EmploymentPeriod(HIRE_DATE, HIRE_DATE.minusDays(1)),
+                List.of(entryOn(HIRE_DATE)), TODAY))
+                .hasMessage("The termination date, 2024-03-31, cannot be before the hire date, 2024-04-01.");
+    }
+
+    @Test
+    void acceptsAnEntryDatedOnTheTerminationDate() {
+        final LocalDate termination = HIRE_DATE.plusMonths(6);
+
+        assertAccepted(new EmploymentPeriod(HIRE_DATE, termination), List.of(entryOn(HIRE_DATE), entryOn(termination)));
+    }
+
+    @Test
+    void rejectsAnEntryDatedAfterTheTerminationDate() {
+        final LocalDate termination = HIRE_DATE.plusMonths(6);
+
+        assertRejectedWith(SalaryRuleCode.SALARY_AFTER_TERMINATION, new EmploymentPeriod(HIRE_DATE, termination),
+                List.of(entryOn(HIRE_DATE), entryOn(termination.plusDays(1))));
+    }
+
+    @Test
+    void acceptsATerminationDateInTheFuture() {
+        assertAccepted(new EmploymentPeriod(HIRE_DATE, TODAY.plusMonths(1)), List.of(entryOn(HIRE_DATE)));
+    }
+
+    @Test
+    void rejectsAScheduledRaiseThatFallsAfterAFutureTerminationDate() {
+        assertRejectedWith(SalaryRuleCode.SALARY_AFTER_TERMINATION,
+                new EmploymentPeriod(HIRE_DATE, TODAY.plusDays(10)),
+                List.of(entryOn(HIRE_DATE), entryOn(TODAY.plusDays(20))));
+    }
+
+    @Test
+    void saysWhyAndNamesTheTerminationDateAnEntryFallsAfter() {
+        final LocalDate termination = HIRE_DATE.plusMonths(6);
+
+        assertThatThrownBy(() -> validator.validate(new EmploymentPeriod(HIRE_DATE, termination),
+                List.of(entryOn(HIRE_DATE), entryOn(termination.plusDays(1))), TODAY))
+                .hasMessage("A salary cannot be effective after the termination date, 2024-10-01.");
+    }
+
+    @Test
+    void acceptsAnEmployeeWithNoTerminationDate() {
+        assertAccepted(new EmploymentPeriod(HIRE_DATE, null), List.of(entryOn(HIRE_DATE)));
+    }
+
+    private void assertAccepted(final EmploymentPeriod period, final List<TimelineEntry> timeline) {
+        assertThatCode(() -> validator.validate(period, timeline, TODAY)).doesNotThrowAnyException();
     }
 
     private void assertRejectedWith(
-            final SalaryRuleCode code, final LocalDate hireDate, final List<TimelineEntry> timeline) {
-        assertThatThrownBy(() -> validator.validate(hireDate, timeline, TODAY))
+            final SalaryRuleCode code, final EmploymentPeriod period, final List<TimelineEntry> timeline) {
+        assertThatThrownBy(() -> validator.validate(period, timeline, TODAY))
                 .isInstanceOfSatisfying(SalaryRuleViolation.class,
                         violation -> assertThat(violation.code()).isEqualTo(code));
+    }
+
+    private static EmploymentPeriod employedFrom(final LocalDate hireDate) {
+        return new EmploymentPeriod(hireDate, null);
     }
 
     private static TimelineEntry entryOn(final LocalDate effectiveDate) {

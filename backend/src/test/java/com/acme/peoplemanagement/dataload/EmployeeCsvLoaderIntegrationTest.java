@@ -136,12 +136,41 @@ class EmployeeCsvLoaderIntegrationTest {
     }
 
     @Test
-    void rejectsATerminationDateUntilLeaversAreSupported() {
+    void loadsAnEmployeeWhoAlreadyLeft() {
         final LoadReport report = load(ROW.replace("1250000.00,,", "1250000.00,,2025-12-31"));
 
-        assertThat(report.rejected()).containsExactly(
-                new RejectedRow(2, "terminationDate", "Termination dates are not supported yet."));
+        assertThat(report).isEqualTo(new LoadReport(1, List.of()));
+        assertThat(jdbcTemplate.queryForObject(
+                "select termination_date from employee where email = 'asha@acme.example'", LocalDate.class))
+                .isEqualTo(LocalDate.of(2025, 12, 31));
+    }
+
+    @Test
+    void rejectsATerminationDateBeforeTheHireDateAgainstTheTerminationColumn() {
+        final LoadReport report = load(ROW.replace("1250000.00,,", "1250000.00,,2023-01-01"));
+
+        assertThat(report.rejected()).hasSize(1);
+        assertThat(report.rejected().getFirst().field()).isEqualTo("terminationDate");
+        assertThat(report.rejected().getFirst().reason()).startsWith("TERMINATION_BEFORE_HIRE_DATE");
         assertThat(employeeCount()).isZero();
+    }
+
+    @Test
+    void rejectsAFirstSalaryDatedAfterTheTerminationAgainstTheSalaryDateColumn() {
+        final LoadReport report = load(ROW.replace("1250000.00,,", "1250000.00,2025-12-31,2025-06-01"));
+
+        assertThat(report.rejected()).hasSize(1);
+        assertThat(report.rejected().getFirst().field()).isEqualTo("salaryEffectiveDate");
+        assertThat(report.rejected().getFirst().reason()).startsWith("SALARY_AFTER_TERMINATION");
+        assertThat(employeeCount()).isZero();
+    }
+
+    @Test
+    void rejectsATerminationDateThatIsNotInIsoFormat() {
+        final LoadReport report = load(ROW.replace("1250000.00,,", "1250000.00,,31/12/2025"));
+
+        assertThat(report.rejected()).containsExactly(new RejectedRow(
+                2, "terminationDate", "Dates must look like 2024-04-01 (year-month-day)."));
     }
 
     @Test

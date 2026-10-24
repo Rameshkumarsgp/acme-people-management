@@ -4,12 +4,15 @@ import com.acme.peoplemanagement.employee.api.CreateEmployeeRequest;
 import com.acme.peoplemanagement.employee.api.CurrentSalaryResponse;
 import com.acme.peoplemanagement.employee.api.EmployeeResponse;
 import com.acme.peoplemanagement.employee.api.InitialSalaryRequest;
+import com.acme.peoplemanagement.employee.api.UpdateEmployeeRequest;
 import com.acme.peoplemanagement.employee.errors.EmailAlreadyExistsException;
 import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
+import com.acme.peoplemanagement.employee.errors.StaleVersionException;
 import com.acme.peoplemanagement.employee.errors.UnknownReferenceException;
 import com.acme.peoplemanagement.employee.rules.EmployeeStatus;
 import com.acme.peoplemanagement.reference.ReferenceLookup;
 import com.acme.peoplemanagement.salary.SalaryService;
+import com.acme.peoplemanagement.salary.rules.EmploymentPeriod;
 import com.acme.peoplemanagement.salary.rules.Money;
 import com.acme.peoplemanagement.salary.rules.TimelineEntry;
 import java.time.Clock;
@@ -20,7 +23,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Creates and reads employees. Salary rules are applied by the salary service, in the same transaction. */
+/** Creates, reads, edits and deletes employees. The salary service applies the salary rules in the same transaction. */
 @Service
 public class EmployeeService {
 
@@ -45,11 +48,39 @@ public class EmployeeService {
 
     @Transactional
     public EmployeeResponse create(final CreateEmployeeRequest request) {
-        verifyReferencesExist(request);
+        verifyReferencesExist(request.departmentId(), request.jobTitleId(), request.countryCode());
+        requireFound(referenceLookup.currency(request.initialSalary().currency()),
+                "initialSalary.currency", "Unknown currency.");
         final LocalDate today = LocalDate.now(clock);
-        final Employee employee = insertEmployee(request);
-        salaryService.recordFirstEntry(employee.id(), request.hireDate(), firstEntryOf(request), today);
+        final EmploymentPeriod period = new EmploymentPeriod(request.hireDate(), request.terminationDate());
+        final TimelineEntry firstEntry = firstEntryOf(request);
+        salaryService.checkFirstEntry(period, firstEntry, today);
+        final Employee employee = saveRejectingDuplicateEmail(new Employee(new EmployeeProfile(
+                request.fullName().strip(), request.email(), request.hireDate(), request.terminationDate(),
+                request.departmentId(), request.jobTitleId(), request.countryCode())));
+        salaryService.recordFirstEntry(employee.id(), period, firstEntry, today);
         return toResponse(employee, today);
+    }
+
+    /**
+     * Replaces an employee's profile. The rules run before anything is written, so a broken rule is reported as
+     * that and not as a database error, and the row lock keeps the timeline from changing in between.
+     */
+    @Transactional
+    public EmployeeResponse update(final long id, final UpdateEmployeeRequest request) {
+        final Employee employee = lockedEmployee(id, request.version());
+        verifyReferencesExist(request.departmentId(), request.jobTitleId(), request.countryCode());
+        final LocalDate today = LocalDate.now(clock);
+        salaryService.revalidate(id, new EmploymentPeriod(request.hireDate(), request.terminationDate()), today);
+        employee.applyProfile(new EmployeeProfile(request.fullName().strip(), request.email(), request.hireDate(),
+                request.terminationDate(), request.departmentId(), request.jobTitleId(), request.countryCode()));
+        return toResponse(saveRejectingDuplicateEmail(employee), today);
+    }
+
+    /** Removes the employee and, through the database cascade, their salary entries. */
+    @Transactional
+    public void delete(final long id, final long version) {
+        employeeRepository.delete(lockedEmployee(id, version));
     }
 
     @Transactional(readOnly = true)
@@ -59,12 +90,20 @@ public class EmployeeService {
         return toResponse(employee, LocalDate.now(clock));
     }
 
-    private void verifyReferencesExist(final CreateEmployeeRequest request) {
-        requireFound(referenceLookup.department(request.departmentId()), "departmentId", "Unknown department.");
-        requireFound(referenceLookup.jobTitle(request.jobTitleId()), "jobTitleId", "Unknown job title.");
-        requireFound(referenceLookup.country(request.countryCode()), "countryCode", "Unknown country.");
-        requireFound(referenceLookup.currency(request.initialSalary().currency()),
-                "initialSalary.currency", "Unknown currency.");
+    private void verifyReferencesExist(final int departmentId, final int jobTitleId, final String countryCode) {
+        requireFound(referenceLookup.department(departmentId), "departmentId", "Unknown department.");
+        requireFound(referenceLookup.jobTitle(jobTitleId), "jobTitleId", "Unknown job title.");
+        requireFound(referenceLookup.country(countryCode), "countryCode", "Unknown country.");
+    }
+
+    /** Reads the employee under the row lock, and refuses a caller who saw an older version. */
+    private Employee lockedEmployee(final long id, final long version) {
+        final Employee employee = employeeRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new EmployeeNotFoundException(id));
+        if (employee.version() != version) {
+            throw new StaleVersionException(id);
+        }
+        return employee;
     }
 
     private static void requireFound(final Optional<?> reference, final String field, final String message) {
@@ -74,9 +113,9 @@ public class EmployeeService {
     }
 
     /** The unique index is the only judge of a duplicate email, so two requests at once cannot both succeed. */
-    private Employee insertEmployee(final CreateEmployeeRequest request) {
+    private Employee saveRejectingDuplicateEmail(final Employee employee) {
         try {
-            return employeeRepository.saveAndFlush(new Employee(toProfile(request)));
+            return employeeRepository.saveAndFlush(employee);
         } catch (DataIntegrityViolationException exception) {
             if (violatesEmailIndex(exception)) {
                 throw new EmailAlreadyExistsException();
@@ -88,11 +127,6 @@ public class EmployeeService {
     private static boolean violatesEmailIndex(final DataIntegrityViolationException exception) {
         return exception.getCause() instanceof ConstraintViolationException violation
                 && EMAIL_UNIQUE_INDEX.equals(violation.getConstraintName());
-    }
-
-    private static EmployeeProfile toProfile(final CreateEmployeeRequest request) {
-        return new EmployeeProfile(request.fullName().strip(), request.email(), request.hireDate(),
-                request.departmentId(), request.jobTitleId(), request.countryCode());
     }
 
     /** The first entry starts on the hire date unless the request names another date. */

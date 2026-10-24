@@ -46,11 +46,25 @@ class SeedGeneratorTest {
     }
 
     @Test
-    void datesTheSalaryAtTheMostRecentWorkAnniversary() {
+    void datesTheSalaryAtTheMostRecentWorkAnniversaryBeforeTheEmploymentEnds() {
         assertThat(ROWS).allSatisfy(row -> {
-            assertThat(row.salaryEffectiveDate()).isAfterOrEqualTo(row.hireDate()).isBeforeOrEqualTo(TODAY);
-            assertThat(row.salaryEffectiveDate().plusYears(1)).isAfter(TODAY);
+            final LocalDate end = row.terminationDate() == null ? TODAY : row.terminationDate();
+            assertThat(row.salaryEffectiveDate()).isAfterOrEqualTo(row.hireDate()).isBeforeOrEqualTo(end);
+            assertThat(row.salaryEffectiveDate().plusYears(1)).isAfter(end);
         });
+    }
+
+    @Test
+    void makesAboutEightPercentOfEmployeesLeavers() {
+        final long leavers = ROWS.stream().filter(row -> row.terminationDate() != null).count();
+
+        assertThat(leavers * 100.0 / COUNT).isBetween(6.0, 10.0);
+    }
+
+    @Test
+    void letsEveryLeaverLeaveAfterBeingHiredAndBeforeToday() {
+        assertThat(ROWS.stream().filter(row -> row.terminationDate() != null)).isNotEmpty().allSatisfy(row ->
+                assertThat(row.terminationDate()).isAfterOrEqualTo(row.hireDate()).isBefore(TODAY));
     }
 
     @Test
@@ -100,6 +114,7 @@ class SeedGeneratorTest {
 
     private static double averageIndianEngineerSalary(final Predicate<EmployeeRow> tenure) {
         return ROWS.stream()
+                .filter(row -> row.terminationDate() == null)
                 .filter(row -> row.countryCode().equals("IN") && row.jobTitle().equals("Software Engineer"))
                 .filter(tenure)
                 .mapToLong(row -> Long.parseLong(row.salary()))

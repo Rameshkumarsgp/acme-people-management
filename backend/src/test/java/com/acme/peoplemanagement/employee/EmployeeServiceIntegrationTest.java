@@ -106,7 +106,7 @@ class EmployeeServiceIntegrationTest {
     @Test
     void namesTheFieldWhenAReferenceDoesNotExist() {
         final CreateEmployeeRequest unknownDepartment = new CreateEmployeeRequest("Asha Rao", "unknown@acme.example",
-                HIRE_DATE, -1, jobTitleId, "IN", new InitialSalaryRequest(null, 100L, "INR"));
+                HIRE_DATE, null, -1, jobTitleId, "IN", new InitialSalaryRequest(null, 100L, "INR"));
 
         assertThatThrownBy(() -> employeeService.create(unknownDepartment))
                 .isInstanceOfSatisfying(UnknownReferenceException.class,
@@ -116,7 +116,7 @@ class EmployeeServiceIntegrationTest {
     @Test
     void namesTheCurrencyFieldWhenTheCurrencyDoesNotExist() {
         final CreateEmployeeRequest unknownCurrency = new CreateEmployeeRequest("Asha Rao", "currency@acme.example",
-                HIRE_DATE, departmentId, jobTitleId, "IN", new InitialSalaryRequest(null, 100L, "ZZZ"));
+                HIRE_DATE, null, departmentId, jobTitleId, "IN", new InitialSalaryRequest(null, 100L, "ZZZ"));
 
         assertThatThrownBy(() -> employeeService.create(unknownCurrency))
                 .isInstanceOfSatisfying(UnknownReferenceException.class,
@@ -141,7 +141,7 @@ class EmployeeServiceIntegrationTest {
 
     private CreateEmployeeRequest request(
             final String email, final LocalDate hireDate, final LocalDate salaryDate, final long amountMinor) {
-        return new CreateEmployeeRequest("  Asha Rao ", email, hireDate, departmentId, jobTitleId, "IN",
+        return new CreateEmployeeRequest("  Asha Rao ", email, hireDate, null, departmentId, jobTitleId, "IN",
                 new InitialSalaryRequest(salaryDate, amountMinor, "INR"));
     }
 

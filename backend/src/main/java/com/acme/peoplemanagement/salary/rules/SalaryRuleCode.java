@@ -4,5 +4,7 @@ package com.acme.peoplemanagement.salary.rules;
 public enum SalaryRuleCode {
     SALARY_BEFORE_HIRE_DATE,
     DUPLICATE_SALARY_DATE,
-    NO_CURRENT_SALARY
+    NO_CURRENT_SALARY,
+    SALARY_AFTER_TERMINATION,
+    TERMINATION_BEFORE_HIRE_DATE
 }
