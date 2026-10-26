@@ -153,6 +153,44 @@ class EmployeeUpdateServiceIntegrationTest {
     }
 
     @Test
+    void movesTheHireDateLaterAsLongAsNoSalaryEntryIsBeforeIt() {
+        final EmployeeResponse paidFromJune = paidFromJune();
+
+        final EmployeeResponse updated = employeeService.update(paidFromJune.id(),
+                hireDateOf(paidFromJune, LocalDate.of(2024, 5, 1)));
+
+        assertThat(updated.hireDate()).isEqualTo(LocalDate.of(2024, 5, 1));
+    }
+
+    @Test
+    void acceptsAHireDateOnTheDateOfTheFirstSalaryEntry() {
+        final EmployeeResponse paidFromJune = paidFromJune();
+
+        final EmployeeResponse updated = employeeService.update(paidFromJune.id(),
+                hireDateOf(paidFromJune, LocalDate.of(2024, 6, 1)));
+
+        assertThat(updated.hireDate()).isEqualTo(LocalDate.of(2024, 6, 1));
+    }
+
+    @Test
+    void refusesAHireDateOneDayAfterTheFirstSalaryEntry() {
+        final EmployeeResponse paidFromJune = paidFromJune();
+
+        assertThatThrownBy(() -> employeeService.update(paidFromJune.id(),
+                hireDateOf(paidFromJune, LocalDate.of(2024, 6, 2))))
+                .isInstanceOfSatisfying(SalaryRuleViolation.class, violation ->
+                        assertThat(violation.code()).isEqualTo(SalaryRuleCode.SALARY_BEFORE_HIRE_DATE));
+        assertThat(employeeService.get(paidFromJune.id()).hireDate()).isEqualTo(HIRE_DATE);
+    }
+
+    @Test
+    void refusesAHireDateAfterTheFirstSalaryEntryWhenThatEntryIsOnTheOldHireDate() {
+        assertThatThrownBy(() -> employeeService.update(asha.id(), hireDateOf(asha, LocalDate.of(2024, 5, 1))))
+                .isInstanceOfSatisfying(SalaryRuleViolation.class, violation ->
+                        assertThat(violation.code()).isEqualTo(SalaryRuleCode.SALARY_BEFORE_HIRE_DATE));
+    }
+
+    @Test
     void refusesAnEmailThatAnotherEmployeeUsesEvenInAnotherCase() {
         employeeService.create(new CreateEmployeeRequest("Ben Carter", "ben@acme.example", HIRE_DATE, null,
                 departmentId, jobTitleId, "IN", new InitialSalaryRequest(null, 100L, "INR")));
@@ -303,6 +341,17 @@ class EmployeeUpdateServiceIntegrationTest {
             outcomes.add(result.get(30, TimeUnit.SECONDS));
         }
         return outcomes;
+    }
+
+    /** Hired on 2024-04-01, but the first salary entry is dated 2024-06-01. */
+    private EmployeeResponse paidFromJune() {
+        return employeeService.create(new CreateEmployeeRequest("Paid From June", "june@acme.example", HIRE_DATE, null,
+                departmentId, jobTitleId, "IN", new InitialSalaryRequest(LocalDate.of(2024, 6, 1), 100L, "INR")));
+    }
+
+    private UpdateEmployeeRequest hireDateOf(final EmployeeResponse employee, final LocalDate hireDate) {
+        return new UpdateEmployeeRequest(employee.fullName(), employee.email(), hireDate, null, departmentId,
+                jobTitleId, "IN", employee.version());
     }
 
     private UpdateEmployeeRequest changeName(final String name, final long version) {
