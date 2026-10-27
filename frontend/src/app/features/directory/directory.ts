@@ -18,7 +18,7 @@ import {
   EmployeeApi,
 } from '../../core/employees/employee-api';
 import { ReferenceApi, ReferenceLists } from '../../core/reference/reference-api';
-import { formatMinor } from '../../shared/money/format-minor';
+import { formatMoney } from '../../shared/money/format-money';
 import {
   PAGE_SIZES,
   readQuery,
@@ -127,12 +127,7 @@ export class Directory {
 
   protected salaryText(row: DirectoryRow): string {
     const salary = row.currentSalary;
-    const currency = this.lists()?.currencies.find(
-      (candidate) => candidate.code === salary.currency,
-    );
-    return currency
-      ? `${formatMinor(salary.amountMinor, currency.minorUnitDigits)} ${currency.code}`
-      : `${salary.amountMinor} ${salary.currency}`;
+    return formatMoney(salary.amountMinor, salary.currency, this.lists()?.currencies);
   }
 
   private changeFilter(change: Partial<DirectoryQuery>): void {

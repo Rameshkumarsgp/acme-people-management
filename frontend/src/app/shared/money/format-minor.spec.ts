@@ -21,4 +21,8 @@ describe('formatMinor', () => {
   it('shows the largest exact amount without rounding it', () => {
     expect(formatMinor(9007199254740991, 2)).toBe('90,071,992,547,409.91');
   });
+
+  it('formats a total beyond the largest exact number from its digits, without rounding', () => {
+    expect(formatMinor('18014398509481983', 2)).toBe('180,143,985,094,819.83');
+  });
 });

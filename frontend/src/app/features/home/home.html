@@ -1,7 +1,130 @@
-<section>
-  <h2>Welcome, {{ username() }}</h2>
-  <p>The salary insights will appear here.</p>
-  <a mat-flat-button routerLink="/employees">Employee directory</a>
-  <a mat-stroked-button routerLink="/employees/new">New employee</a>
-  <button mat-stroked-button type="button" (click)="signOut()">Sign out</button>
+<!-- The labels and messages are hard-coded in English for now. For localization they should come from one central place, such as Angular's i18n. -->
+<section class="dashboard">
+  <header class="toolbar">
+    <h2>Welcome, {{ username() }}</h2>
+    <a mat-flat-button routerLink="/employees">Employee directory</a>
+    <a mat-stroked-button routerLink="/employees/new">New employee</a>
+    <button mat-stroked-button type="button" (click)="signOut()">Sign out</button>
+  </header>
+
+  <h3>How ACME pays people</h3>
+  <p class="note">
+    Salaries are annual base pay, as of today. Every figure is per currency, never mixed.
+  </p>
+
+  <div class="filters">
+    <mat-form-field appearance="outline">
+      <mat-label>Slice by</mat-label>
+      <select matNativeControl data-test="dimension" (change)="chooseDimension($event)">
+        @for (dimension of dimensions; track dimension.value) {
+          <option [value]="dimension.value" [selected]="dimension.value === query().dimension">
+            {{ dimension.label }}
+          </option>
+        }
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Country</mat-label>
+      <select matNativeControl data-test="country" (change)="chooseCountry($event)">
+        <option value="" [selected]="query().countryCode === ''">All countries</option>
+        @for (country of lists()?.countries; track country.code) {
+          <option [value]="country.code" [selected]="country.code === query().countryCode">
+            {{ country.name }}
+          </option>
+        }
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Department</mat-label>
+      <select matNativeControl data-test="department" (change)="chooseDepartment($event)">
+        <option value="" [selected]="query().departmentId === null">All departments</option>
+        @for (department of lists()?.departments; track department.id) {
+          <option [value]="department.id" [selected]="department.id === query().departmentId">
+            {{ department.name }}
+          </option>
+        }
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Job title</mat-label>
+      <select matNativeControl data-test="job-title" (change)="chooseJobTitle($event)">
+        <option value="" [selected]="query().jobTitleId === null">All job titles</option>
+        @for (jobTitle of lists()?.jobTitles; track jobTitle.id) {
+          <option [value]="jobTitle.id" [selected]="jobTitle.id === query().jobTitleId">
+            {{ jobTitle.name }}
+          </option>
+        }
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Salary currency</mat-label>
+      <select matNativeControl data-test="currency" (change)="chooseCurrency($event)">
+        <option value="" [selected]="query().currency === ''">All currencies</option>
+        @for (currency of lists()?.currencies; track currency.code) {
+          <option [value]="currency.code" [selected]="currency.code === query().currency">
+            {{ currency.code }}
+          </option>
+        }
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Status</mat-label>
+      <select matNativeControl data-test="status" (change)="chooseStatus($event)">
+        <option value="ACTIVE" [selected]="query().status === 'ACTIVE'">Active</option>
+        <option value="FORMER" [selected]="query().status === 'FORMER'">Former</option>
+        <option value="ALL" [selected]="query().status === 'ALL'">All</option>
+      </select>
+    </mat-form-field>
+  </div>
+
+  @if (insightsState() === 'failed') {
+    <p role="alert">Could not load the insights. Check your connection and try again.</p>
+    <button mat-stroked-button type="button" data-test="retry" (click)="retry()">Try again</button>
+  } @else if (insights(); as current) {
+    @if (current.groups.length === 0) {
+      <p class="empty" data-test="no-groups">No employees match.</p>
+    } @else {
+      <app-insights-table [groups]="current.groups" [currencies]="lists()?.currencies" />
+    }
+  }
+  @if (insightsState() === 'loading') {
+    <p>Loading…</p>
+  }
+
+  <h3>Highest and lowest paid</h3>
+  <div class="filters">
+    <mat-form-field appearance="outline">
+      <mat-label>Show</mat-label>
+      <select matNativeControl data-test="rank" (change)="chooseRank($event)">
+        <option value="HIGHEST" [selected]="query().rank === 'HIGHEST'">Highest paid</option>
+        <option value="LOWEST" [selected]="query().rank === 'LOWEST'">Lowest paid</option>
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>In currency</mat-label>
+      <select matNativeControl data-test="rank-currency" (change)="chooseRankCurrency($event)">
+        @for (currency of lists()?.currencies; track currency.code) {
+          <option [value]="currency.code" [selected]="currency.code === rankCurrency()">
+            {{ currency.code }}
+          </option>
+        }
+      </select>
+    </mat-form-field>
+  </div>
+  @if (extremesState() === 'failed') {
+    <p role="alert">Could not load the ranking. Check your connection and try again.</p>
+    <button mat-stroked-button type="button" data-test="retry-extremes" (click)="retry()">
+      Try again
+    </button>
+  } @else if (extremes(); as ranked) {
+    @if (ranked.employees.length === 0) {
+      <p class="empty" data-test="no-employees">No employees are paid in {{ ranked.currency }}.</p>
+    } @else {
+      <app-extremes-list
+        [employees]="ranked.employees"
+        [currency]="ranked.currency"
+        [currencies]="lists()?.currencies"
+      />
+    }
+  }
 </section>

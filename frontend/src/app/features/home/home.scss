@@ -3,7 +3,34 @@
   padding: 32px 16px;
 }
 
-section {
-  max-width: 640px;
+.dashboard {
+  max-width: 80rem;
   margin-inline: auto;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  h2 {
+    flex: 1;
+    margin: 0;
+  }
+}
+
+.note {
+  margin: 0 0 1rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.empty {
+  margin: 1rem 0;
 }
