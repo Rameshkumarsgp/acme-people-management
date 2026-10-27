@@ -44,7 +44,7 @@ Every view can be filtered by country, department, and job title. Measures are h
 - **Payroll, payslips, tax, and bank transfers:** need financial and regulatory workflows.
 - **Upload screen, `.xlsx` parsing and export:** migration is a one-time CSV load from the command line. An upload screen with column mapping and row-level error review is a feature of its own, and exporting salary data widens the surface where it can leak.
 - **Limits of the CSV load:** dates must be ISO and amounts plain numbers, so a sheet saved from Excel with local dates needs reformatting first. Loading the same file twice rejects every row.
-- **Terminating an employee who has a future-dated raise:** refused until a salary entry can be deleted (slice 7), because no entry may be dated after the termination date.
+- **Terminating an employee who has a future-dated raise:** refused until HR deletes that entry, because no entry may be dated after the termination date.
 - **Maintaining departments and job titles in the app:** these are standardized reference data managed through migrations. HR cannot add a title without a code change.
 
 ## Open questions and working assumptions

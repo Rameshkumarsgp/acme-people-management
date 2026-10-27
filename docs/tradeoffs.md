@@ -181,7 +181,7 @@ A plain contains-search on name and email took about 5.5 ms whether it matched 4
 **What it costs.**
 
 - **A stale edit discards the user's changes.** The banner offers Reload, which loads the latest values and drops what was typed. Merging would hide someone else's change.
-- **Terminating an employee who has a future-dated raise is refused**, because no entry may be dated after the termination date. Until slice 7 adds editing and deleting an entry, there is no way in the app to remove that entry, so HR must wait or ask for a change. The message says why.
+- **Terminating an employee who has a future-dated raise is refused**, because no entry may be dated after the termination date. HR deletes that entry first, which slice 7 made possible, and the message says why.
 - **Delete is irreversible** and leaves no record that it happened, as the hard-delete note above says.
 - **The version bumps only on a profile change.** A salary change does not bump it, so an edit form opened before a raise still saves. That is safe because the profile does not depend on the salary amounts, and the timeline is checked again on save.
 
@@ -195,3 +195,17 @@ A plain contains-search on name and email took about 5.5 ms whether it matched 4
 | Merging a stale edit automatically | It would hide someone else's change. |
 
 **Related.** [design.md](design.md), decisions 24 to 29.
+
+## The change log records what and when, never who, and is not tamper-proof
+
+**Decision.** Every add, edit and delete of a salary entry writes a row to `salary_entry_change` in the same transaction, with the old and the new date, amount and currency and the time. The page shows it newest first. Editing and deleting an entry run the same timeline rules as adding one, under the employee row lock.
+
+**What it costs.**
+
+- **There is no "who".** One shared login cannot attribute a change to a person. The log answers what changed and when, which is what the brief needs.
+- **It is not tamper-proof.** Anyone with the shared login can add, edit and delete entries, and the log's rows are ordinary rows. It is a record for HR, not an audit trail for an auditor.
+- **Deleting an employee deletes their change rows** (`ON DELETE CASCADE`), as the hard-delete note above says. Deleting a single entry keeps its rows.
+- **Profile changes and terminations are not logged.** The design limits the log to salary entries.
+- **The initial salary and the CSV load log nothing,** because an initial load is not a change. The log starts with the first edit.
+
+**Related.** [design.md](design.md), decisions 30 to 33.
