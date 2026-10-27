@@ -66,10 +66,11 @@ describe('EmployeeDetail', () => {
     });
   }
 
-  function answer(employee: object, entries: object[] = ENTRIES): void {
+  function answer(employee: object, entries: object[] = ENTRIES, changes: object[] = []): void {
     http.expectOne('/api/employees/10432').flush(employee);
     http.expectOne('/api/reference/currencies').flush([{ code: 'INR', minorUnitDigits: 2 }]);
     http.expectOne('/api/employees/10432/salary-entries').flush(entries);
+    http.expectOne('/api/employees/10432/salary-changes').flush(changes);
   }
 
   it('says it is loading until the answers arrive', () => {
@@ -96,6 +97,7 @@ describe('EmployeeDetail', () => {
     http.expectOne('/api/employees/10432').flush(null, { status: 404, statusText: 'Not Found' });
     http.expectOne('/api/reference/currencies').flush([]);
     http.expectOne('/api/employees/10432/salary-entries').flush([]);
+    http.expectOne('/api/employees/10432/salary-changes').flush([]);
 
     await until(() =>
       expect(page.querySelector('[role="alert"]')?.textContent).toContain(
@@ -108,6 +110,7 @@ describe('EmployeeDetail', () => {
     http.expectOne('/api/employees/10432').error(new ProgressEvent('error'));
     http.expectOne('/api/reference/currencies').flush([]);
     http.expectOne('/api/employees/10432/salary-entries').flush([]);
+    http.expectOne('/api/employees/10432/salary-changes').flush([]);
     await until(() =>
       expect(page.querySelector('[role="alert"]')?.textContent).toContain('Could not load'),
     );
@@ -222,7 +225,13 @@ describe('EmployeeDetail', () => {
       await clickDelete();
 
       expect(open).toHaveBeenCalledTimes(1);
-      expect(open.mock.calls[0][1]?.data).toEqual({ fullName: 'Asha Rao' });
+      expect(open.mock.calls[0][1]?.data).toMatchObject({ title: 'Delete Asha Rao?' });
+      expect((open.mock.calls[0][1]?.data as { message: string }).message).toContain(
+        'salary history',
+      );
+      expect((open.mock.calls[0][1]?.data as { message: string }).message).toContain(
+        'cannot be undone',
+      );
     });
 
     it('does nothing when the confirmation is cancelled', async () => {
@@ -294,6 +303,146 @@ describe('EmployeeDetail', () => {
         expect(page.querySelector('[role="alert"]')?.textContent).toContain('Could not delete'),
       );
       expect(navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('salary entries and the change history', () => {
+    const CHANGES = [
+      {
+        id: 9,
+        entryId: 1,
+        action: 'EDITED',
+        changedAt: '2026-10-19T09:00:00Z',
+        before: { effectiveDate: '2024-04-01', amountMinor: 100000000, currency: 'INR' },
+        after: { effectiveDate: '2024-04-01', amountMinor: 125000050, currency: 'INR' },
+      },
+    ];
+
+    function dialogAnswering(answerValue: boolean) {
+      return vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(answerValue),
+      } as MatDialogRef<unknown, boolean>);
+    }
+
+    async function loaded(): Promise<void> {
+      answer(EMPLOYEE, ENTRIES, CHANGES);
+      await until(() => expect(page.textContent).toContain('Asha Rao'));
+    }
+
+    const rowButton = (kind: 'edit' | 'delete') =>
+      page.querySelector<HTMLButtonElement>(`tr[mat-row] button[data-test="${kind}-entry"]`)!;
+    const deleteRequest = () =>
+      http.expectOne(
+        (request) =>
+          request.method === 'DELETE' && request.url === '/api/employees/10432/salary-entries/1',
+      );
+
+    it('shows the change history under the salary history', async () => {
+      await loaded();
+
+      await until(() => {
+        const text = page.textContent ?? '';
+        expect(text).toContain('Change history');
+        expect(text).toContain('Edited');
+        expect(text).toContain('1,000,000.00 INR → 2024-04-01 · 1,250,000.50 INR');
+      });
+    });
+
+    it('opens the dialog on the entry that was chosen, with the currencies', async () => {
+      const open = dialogAnswering(false);
+      await loaded();
+
+      rowButton('edit').click();
+
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0][1]?.data).toEqual({
+        employeeId: 10432,
+        currencies: [{ code: 'INR', minorUnitDigits: 2 }],
+        defaultCurrency: 'INR',
+        entry: ENTRIES[0],
+      });
+    });
+
+    it('reads everything again after an entry was changed', async () => {
+      dialogAnswering(true);
+      await loaded();
+
+      rowButton('edit').click();
+
+      await vi.waitFor(() => answer(EMPLOYEE, ENTRIES, CHANGES));
+    });
+
+    it('asks which salary is to be deleted, and does nothing when that is cancelled', async () => {
+      const open = dialogAnswering(false);
+      await loaded();
+
+      rowButton('delete').click();
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(open.mock.calls[0][1]?.data).toMatchObject({
+        title: 'Delete the salary from 2024-04-01?',
+      });
+      http.expectNone((request) => request.method === 'DELETE');
+    });
+
+    it('deletes the chosen entry and reads everything again', async () => {
+      dialogAnswering(true);
+      await loaded();
+
+      rowButton('delete').click();
+      await vi.waitFor(() =>
+        deleteRequest().flush(null, { status: 204, statusText: 'No Content' }),
+      );
+
+      await vi.waitFor(() => answer(EMPLOYEE, ENTRIES, CHANGES));
+    });
+
+    it('shows the reason when deleting would break a rule, and keeps the page', async () => {
+      dialogAnswering(true);
+      await loaded();
+
+      rowButton('delete').click();
+      await vi.waitFor(() =>
+        deleteRequest().flush(
+          {
+            code: 'NO_CURRENT_SALARY',
+            detail: 'There must be a salary effective on or before today.',
+          },
+          { status: 422, statusText: 'Unprocessable Entity' },
+        ),
+      );
+
+      await until(() =>
+        expect(page.querySelector('[role="alert"]')?.textContent).toContain(
+          'There must be a salary effective on or before today.',
+        ),
+      );
+      expect(page.textContent).toContain('Asha Rao');
+    });
+
+    it('reads everything again, without an error, when the entry was already gone', async () => {
+      dialogAnswering(true);
+      await loaded();
+
+      rowButton('delete').click();
+      await vi.waitFor(() => deleteRequest().flush(null, { status: 404, statusText: 'Not Found' }));
+
+      await vi.waitFor(() => answer(EMPLOYEE, ENTRIES, CHANGES));
+      await until(() => expect(page.querySelector('[role="alert"]')).toBeNull());
+    });
+
+    it('says it could not delete when the server fails', async () => {
+      dialogAnswering(true);
+      await loaded();
+
+      rowButton('delete').click();
+      await vi.waitFor(() => deleteRequest().error(new ProgressEvent('error')));
+
+      await until(() =>
+        expect(page.querySelector('[role="alert"]')?.textContent).toContain(
+          'Could not delete the salary entry',
+        ),
+      );
     });
   });
 });

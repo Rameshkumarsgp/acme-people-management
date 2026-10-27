@@ -82,4 +82,38 @@ describe('SalaryHistory', () => {
 
     expect(rows().map((row) => row[2])).toEqual(['20000000 JPY', '150000050 INR', '125000000 INR']);
   });
+
+  describe('row actions', () => {
+    const button = (row: number, kind: 'edit' | 'delete') => {
+      const tableRows = page.querySelectorAll('tr[mat-row]');
+      return tableRows[row].querySelector<HTMLButtonElement>(`button[data-test="${kind}-entry"]`);
+    };
+
+    it('offers Edit and Delete on every row, named by the date of the entry', () => {
+      expect(page.querySelectorAll('button[data-test="edit-entry"]')).toHaveLength(3);
+      expect(page.querySelectorAll('button[data-test="delete-entry"]')).toHaveLength(3);
+      expect(button(1, 'edit')?.getAttribute('aria-label')).toBe('Edit the salary from 2025-04-01');
+      expect(button(1, 'delete')?.getAttribute('aria-label')).toBe(
+        'Delete the salary from 2025-04-01',
+      );
+    });
+
+    it('says which entry to edit when Edit is chosen', () => {
+      const edited: SalaryEntry[] = [];
+      fixture.componentInstance.edit.subscribe((entry) => edited.push(entry));
+
+      button(1, 'edit')!.click();
+
+      expect(edited).toEqual([ENTRIES[1]]);
+    });
+
+    it('says which entry to delete when Delete is chosen', () => {
+      const removed: SalaryEntry[] = [];
+      fixture.componentInstance.remove.subscribe((entry) => removed.push(entry));
+
+      button(2, 'delete')!.click();
+
+      expect(removed).toEqual([ENTRIES[2]]);
+    });
+  });
 });

@@ -1,6 +1,6 @@
 <!-- The labels and messages are hard-coded in English for now. For localization they should come from one central place, such as Angular's i18n. -->
-<form [formGroup]="form" (ngSubmit)="addSalary()" novalidate>
-  <h2 mat-dialog-title>Add salary</h2>
+<form [formGroup]="form" (ngSubmit)="saveSalary()" novalidate>
+  <h2 mat-dialog-title>{{ editing ? 'Edit salary' : 'Add salary' }}</h2>
   <mat-dialog-content>
     <mat-form-field appearance="outline">
       <mat-label>Effective date</mat-label>
@@ -32,7 +32,7 @@
   <mat-dialog-actions align="end">
     <button mat-button type="button" mat-dialog-close>Cancel</button>
     <button mat-flat-button type="submit" [disabled]="submitting()">
-      {{ submitting() ? 'Saving…' : 'Add salary' }}
+      {{ submitting() ? 'Saving…' : editing ? 'Save changes' : 'Add salary' }}
     </button>
   </mat-dialog-actions>
 </form>

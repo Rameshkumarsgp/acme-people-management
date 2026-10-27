@@ -7,18 +7,21 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { FormErrors, toFormErrors } from '../../../core/api/to-form-errors';
-import { EmployeeApi } from '../../../core/employees/employee-api';
+import { EmployeeApi, SalaryEntry } from '../../../core/employees/employee-api';
 import { Currency } from '../../../core/reference/reference-api';
+import { formatMinor } from '../../../shared/money/format-minor';
 import { AmountError, parseMajorToMinor } from '../../../shared/money/parse-major-to-minor';
 import {
   describeAmountError,
   salaryAmountValidator,
 } from '../../../shared/money/salary-amount.validator';
 
-export interface AddSalaryDialogData {
+export interface SalaryEntryDialogData {
   employeeId: number;
   currencies: Currency[];
   defaultCurrency: string;
+  /** The entry to change. Without it, the dialog adds a new entry. */
+  entry?: SalaryEntry;
 }
 
 type ControlName = 'effectiveDate' | 'amount' | 'currency';
@@ -31,7 +34,7 @@ const SERVER_FIELD_TO_CONTROL: Readonly<Record<string, ControlName | undefined>>
 };
 
 @Component({
-  selector: 'app-add-salary-dialog',
+  selector: 'app-salary-entry-dialog',
   imports: [
     ReactiveFormsModule,
     MatButtonModule,
@@ -39,16 +42,19 @@ const SERVER_FIELD_TO_CONTROL: Readonly<Record<string, ControlName | undefined>>
     MatFormFieldModule,
     MatInputModule,
   ],
-  templateUrl: './add-salary-dialog.html',
-  styleUrl: './add-salary-dialog.scss',
+  templateUrl: './salary-entry-dialog.html',
+  styleUrl: './salary-entry-dialog.scss',
 })
-export class AddSalaryDialog {
+export class SalaryEntryDialog {
   private readonly employeeApi = inject(EmployeeApi);
-  private readonly dialogRef = inject(MatDialogRef<AddSalaryDialog, boolean>);
-  private readonly data = inject<AddSalaryDialogData>(MAT_DIALOG_DATA);
-  private readonly selectedCurrencyCode = signal(this.data.defaultCurrency);
+  private readonly dialogRef = inject(MatDialogRef<SalaryEntryDialog, boolean>);
+  private readonly data = inject<SalaryEntryDialogData>(MAT_DIALOG_DATA);
+  private readonly selectedCurrencyCode = signal(
+    this.data.entry?.currency ?? this.data.defaultCurrency,
+  );
 
   protected readonly currencies = this.data.currencies;
+  protected readonly editing = this.data.entry !== undefined;
   protected readonly submitting = signal(false);
   protected readonly formError = signal<string | null>(null);
   private readonly minorUnitDigits = computed(
@@ -57,9 +63,12 @@ export class AddSalaryDialog {
         ?.minorUnitDigits ?? null,
   );
   protected readonly form = inject(NonNullableFormBuilder).group({
-    effectiveDate: ['', Validators.required],
-    amount: ['', [Validators.required, salaryAmountValidator(() => this.minorUnitDigits())]],
-    currency: [this.data.defaultCurrency, Validators.required],
+    effectiveDate: [this.data.entry?.effectiveDate ?? '', Validators.required],
+    amount: [
+      this.amountTextOf(this.data.entry),
+      [Validators.required, salaryAmountValidator(() => this.minorUnitDigits())],
+    ],
+    currency: [this.selectedCurrencyCode(), Validators.required],
   });
 
   constructor() {
@@ -87,7 +96,7 @@ export class AddSalaryDialog {
     return 'This value is not valid.';
   }
 
-  protected async addSalary(): Promise<void> {
+  protected async saveSalary(): Promise<void> {
     // The button is disabled while saving, but a second click can arrive before the page redraws.
     if (this.submitting()) {
       return;
@@ -102,11 +111,14 @@ export class AddSalaryDialog {
     this.submitting.set(true);
     this.formError.set(null);
     try {
-      await this.employeeApi.addSalaryEntry(this.data.employeeId, {
+      const request = {
         effectiveDate: value.effectiveDate,
         amountMinor: amount.amountMinor,
         currency: value.currency,
-      });
+      };
+      await (this.data.entry
+        ? this.employeeApi.updateSalaryEntry(this.data.employeeId, this.data.entry.id, request)
+        : this.employeeApi.addSalaryEntry(this.data.employeeId, request));
       this.dialogRef.close(true);
     } catch (error) {
       if (!(error instanceof HttpErrorResponse)) {
@@ -116,6 +128,12 @@ export class AddSalaryDialog {
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  /** The amount as HR would type it, in the entry's own currency, or empty when adding. */
+  private amountTextOf(entry: SalaryEntry | undefined): string {
+    const currency = this.data.currencies.find((candidate) => candidate.code === entry?.currency);
+    return entry && currency ? formatMinor(entry.amountMinor, currency.minorUnitDigits) : '';
   }
 
   /** A field with no control here has nowhere to show its message, so it goes in the banner. */

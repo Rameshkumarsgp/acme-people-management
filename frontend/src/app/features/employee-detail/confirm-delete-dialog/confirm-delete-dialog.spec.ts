@@ -12,7 +12,10 @@ describe('ConfirmDeleteDialog', () => {
     await TestBed.configureTestingModule({
       imports: [ConfirmDeleteDialog],
       providers: [
-        { provide: MAT_DIALOG_DATA, useValue: { fullName: 'Asha Rao' } },
+        {
+          provide: MAT_DIALOG_DATA,
+          useValue: { title: 'Delete Asha Rao?', message: 'This cannot be undone.' },
+        },
         { provide: MatDialogRef, useValue: { close } },
       ],
     }).compileComponents();
@@ -21,12 +24,9 @@ describe('ConfirmDeleteDialog', () => {
     fixture.detectChanges();
   });
 
-  it('names the person and says the history goes with them and it cannot be undone', () => {
-    const text = page.textContent ?? '';
-
-    expect(text).toContain('Delete Asha Rao?');
-    expect(text).toContain('salary history');
-    expect(text).toContain('cannot be undone');
+  it('shows the title and the message it was given', () => {
+    expect(page.querySelector('h2')?.textContent).toContain('Delete Asha Rao?');
+    expect(page.textContent).toContain('This cannot be undone.');
   });
 
   it('closes with true when Delete is chosen', () => {

@@ -2,12 +2,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import {
-  AddSalaryEntryRequest,
+  SalaryEntryRequest,
   CreateEmployeeRequest,
   DEFAULT_DIRECTORY_QUERY,
   DirectoryPage,
   DirectoryQuery,
   EmployeeApi,
+  SalaryChange,
   SalaryEntry,
   UpdateEmployeeRequest,
 } from './employee-api';
@@ -70,7 +71,7 @@ describe('EmployeeApi', () => {
   });
 
   it('posts a new salary entry for an employee and returns it', async () => {
-    const request: AddSalaryEntryRequest = {
+    const request: SalaryEntryRequest = {
       effectiveDate: '2026-04-01',
       amountMinor: 150000000,
       currency: 'INR',
@@ -165,6 +166,47 @@ describe('EmployeeApi', () => {
       call.flush(null, { status: 204, statusText: 'No Content' });
 
       await expect(deleting).resolves.toBeUndefined();
+    });
+  });
+
+  describe('salary entry changes', () => {
+    it('puts a changed salary entry and returns it', async () => {
+      const request: SalaryEntryRequest = {
+        effectiveDate: '2026-05-01',
+        amountMinor: 160000000,
+        currency: 'INR',
+      };
+      const updating = api.updateSalaryEntry(10432, 5, request);
+      const call = http.expectOne('/api/employees/10432/salary-entries/5');
+      expect(call.request.method).toBe('PUT');
+      expect(call.request.body).toEqual(request);
+      call.flush({ id: 5 });
+
+      expect((await updating).id).toBe(5);
+    });
+
+    it('deletes a salary entry', async () => {
+      const deleting = api.deleteSalaryEntry(10432, 5);
+      const call = http.expectOne('/api/employees/10432/salary-entries/5');
+      expect(call.request.method).toBe('DELETE');
+      call.flush(null, { status: 204, statusText: 'No Content' });
+
+      await expect(deleting).resolves.toBeUndefined();
+    });
+
+    it('lists the change log of an employee', async () => {
+      const change: SalaryChange = {
+        id: 9,
+        entryId: 5,
+        action: 'EDITED',
+        changedAt: '2026-10-19T09:00:00Z',
+        before: { effectiveDate: '2026-04-01', amountMinor: 150000000, currency: 'INR' },
+        after: { effectiveDate: '2026-04-01', amountMinor: 160000000, currency: 'INR' },
+      };
+      const listing = api.listSalaryChanges(10432);
+      http.expectOne('/api/employees/10432/salary-changes').flush([change]);
+
+      expect(await listing).toEqual([change]);
     });
   });
 });

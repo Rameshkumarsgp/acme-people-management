@@ -57,10 +57,19 @@
         }
         <section class="history-section">
           <h3>Salary history</h3>
-          <app-salary-history [entries]="entries()" [currencies]="currencies()" />
+          <app-salary-history
+            [entries]="entries()"
+            [currencies]="currencies()"
+            (edit)="openEditSalary($event)"
+            (remove)="deleteSalaryEntry($event)"
+          />
           <button mat-flat-button type="button" data-test="add-salary" (click)="openAddSalary()">
             Add salary
           </button>
+        </section>
+        <section class="history-section">
+          <h3>Change history</h3>
+          <app-salary-changes [changes]="changes()" [currencies]="currencies()" />
         </section>
         <a mat-stroked-button routerLink="/employees">Back to directory</a>
         <a mat-stroked-button routerLink="/">Back to home</a>

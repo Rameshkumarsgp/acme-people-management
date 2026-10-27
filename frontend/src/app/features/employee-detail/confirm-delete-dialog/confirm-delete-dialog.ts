@@ -3,7 +3,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 
 export interface ConfirmDeleteDialogData {
-  fullName: string;
+  title: string;
+  message: string;
 }
 
 @Component({
@@ -14,7 +15,7 @@ export interface ConfirmDeleteDialogData {
 export class ConfirmDeleteDialog {
   private readonly dialogRef = inject(MatDialogRef<ConfirmDeleteDialog, boolean>);
 
-  protected readonly fullName = inject<ConfirmDeleteDialogData>(MAT_DIALOG_DATA).fullName;
+  protected readonly data = inject<ConfirmDeleteDialogData>(MAT_DIALOG_DATA);
 
   protected answer(confirmed: boolean): void {
     this.dialogRef.close(confirmed);

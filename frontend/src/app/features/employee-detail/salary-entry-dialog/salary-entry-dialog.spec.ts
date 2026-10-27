@@ -2,9 +2,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { AddSalaryDialog, AddSalaryDialogData } from './add-salary-dialog';
+import { SalaryEntry } from '../../../core/employees/employee-api';
+import { SalaryEntryDialog, SalaryEntryDialogData } from './salary-entry-dialog';
 
-const DATA: AddSalaryDialogData = {
+const DATA: SalaryEntryDialogData = {
   employeeId: 10432,
   defaultCurrency: 'INR',
   currencies: [
@@ -15,8 +16,8 @@ const DATA: AddSalaryDialogData = {
 
 const ENTRIES_URL = '/api/employees/10432/salary-entries';
 
-describe('AddSalaryDialog', () => {
-  let fixture: ComponentFixture<AddSalaryDialog>;
+describe('SalaryEntryDialog', () => {
+  let fixture: ComponentFixture<SalaryEntryDialog>;
   let page: HTMLElement;
   let http: HttpTestingController;
   const close = vi.fn();
@@ -24,7 +25,7 @@ describe('AddSalaryDialog', () => {
   beforeEach(async () => {
     close.mockReset();
     await TestBed.configureTestingModule({
-      imports: [AddSalaryDialog],
+      imports: [SalaryEntryDialog],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -33,7 +34,7 @@ describe('AddSalaryDialog', () => {
       ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
-    fixture = TestBed.createComponent(AddSalaryDialog);
+    fixture = TestBed.createComponent(SalaryEntryDialog);
     page = fixture.nativeElement as HTMLElement;
     fixture.detectChanges();
   });
@@ -174,5 +175,106 @@ describe('AddSalaryDialog', () => {
       expect(button.disabled).toBe(false);
       expect(alertText()).toContain('Could not save');
     });
+  });
+});
+
+describe('SalaryEntryDialog when editing an entry', () => {
+  const ENTRY: SalaryEntry = {
+    id: 5,
+    effectiveDate: '2026-04-01',
+    amountMinor: 150000050,
+    currency: 'INR',
+    endDate: null,
+    current: true,
+    scheduled: false,
+  };
+  const EDIT_URL = `${ENTRIES_URL}/5`;
+  let fixture: ComponentFixture<SalaryEntryDialog>;
+  let page: HTMLElement;
+  let http: HttpTestingController;
+  const close = vi.fn();
+
+  async function open(entry: SalaryEntry): Promise<void> {
+    close.mockReset();
+    const data: SalaryEntryDialogData = { ...DATA, entry };
+    await TestBed.configureTestingModule({
+      imports: [SalaryEntryDialog],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MAT_DIALOG_DATA, useValue: data },
+        { provide: MatDialogRef, useValue: { close } },
+      ],
+    }).compileComponents();
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(SalaryEntryDialog);
+    page = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+  }
+
+  afterEach(() => http.verify());
+
+  const field = (name: string) =>
+    page.querySelector<HTMLInputElement | HTMLSelectElement>(`[formControlName="${name}"]`)!;
+
+  function type(name: string, value: string): void {
+    field(name).value = value;
+    field(name).dispatchEvent(
+      new Event(field(name) instanceof HTMLSelectElement ? 'change' : 'input'),
+    );
+  }
+
+  it('says it edits and shows the entry as it is', async () => {
+    await open(ENTRY);
+
+    expect(page.querySelector('h2')?.textContent).toContain('Edit salary');
+    expect(field('effectiveDate').value).toBe('2026-04-01');
+    expect(field('currency').value).toBe('INR');
+    expect(field('amount').value).toBe('1,500,000.50');
+    expect(page.querySelector('button[type="submit"]')?.textContent).toContain('Save changes');
+  });
+
+  it('shows the entry in its own currency, with that currency decimals', async () => {
+    await open({ ...ENTRY, currency: 'JPY', amountMinor: 6500000 });
+
+    expect(field('currency').value).toBe('JPY');
+    expect(field('amount').value).toBe('6,500,000');
+  });
+
+  it('puts the changes to that entry as exact minor units and closes', async () => {
+    await open(ENTRY);
+    type('amount', '1,600,000.00');
+    type('effectiveDate', '2026-05-01');
+
+    page.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+    const call = http.expectOne(EDIT_URL);
+    call.flush({ id: 5 });
+
+    expect(call.request.method).toBe('PUT');
+    expect(call.request.body).toEqual({
+      effectiveDate: '2026-05-01',
+      amountMinor: 160000000,
+      currency: 'INR',
+    });
+    await vi.waitFor(() => expect(close).toHaveBeenCalledWith(true));
+  });
+
+  it('shows a refusal from the server in a banner and keeps the dialog open', async () => {
+    await open(ENTRY);
+
+    page.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+    http.expectOne(EDIT_URL).flush(
+      {
+        code: 'DUPLICATE_SALARY_DATE',
+        detail: 'There is already a salary effective on 2026-04-01.',
+      },
+      { status: 422, statusText: 'Unprocessable Content' },
+    );
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(page.querySelector('[role="alert"]')?.textContent).toContain('already a salary');
+    });
+    expect(close).not.toHaveBeenCalled();
   });
 });

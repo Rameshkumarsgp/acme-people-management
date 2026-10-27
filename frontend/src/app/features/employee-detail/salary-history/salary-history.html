@@ -15,6 +15,29 @@
     <th mat-header-cell *matHeaderCellDef></th>
     <td mat-cell *matCellDef="let entry">{{ markerText(entry) }}</td>
   </ng-container>
+  <ng-container matColumnDef="actions">
+    <th mat-header-cell *matHeaderCellDef></th>
+    <td mat-cell *matCellDef="let entry">
+      <button
+        mat-button
+        type="button"
+        data-test="edit-entry"
+        [attr.aria-label]="'Edit the salary from ' + entry.effectiveDate"
+        (click)="edit.emit(entry)"
+      >
+        Edit
+      </button>
+      <button
+        mat-button
+        type="button"
+        data-test="delete-entry"
+        [attr.aria-label]="'Delete the salary from ' + entry.effectiveDate"
+        (click)="remove.emit(entry)"
+      >
+        Delete
+      </button>
+    </td>
+  </ng-container>
   <tr mat-header-row *matHeaderRowDef="columns"></tr>
   <tr mat-row *matRowDef="let row; columns: columns"></tr>
 </table>

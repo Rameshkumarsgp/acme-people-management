@@ -50,7 +50,7 @@ export interface SalaryEntry {
   scheduled: boolean;
 }
 
-export interface AddSalaryEntryRequest {
+export interface SalaryEntryRequest {
   effectiveDate: string;
   amountMinor: number;
   currency?: string;
@@ -101,6 +101,23 @@ export interface DirectoryPage {
   size: number;
   totalElements: number;
   totalPages: number;
+}
+
+/** A salary entry's date, amount and currency at one moment, as the change log shows it. */
+export interface SalaryValues {
+  effectiveDate: string;
+  amountMinor: number;
+  currency: string;
+}
+
+/** One line of the change log. `before` is empty for an added entry and `after` for a deleted one. */
+export interface SalaryChange {
+  id: number;
+  entryId: number;
+  action: 'ADDED' | 'EDITED' | 'DELETED';
+  changedAt: string;
+  before: SalaryValues | null;
+  after: SalaryValues | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -157,7 +174,34 @@ export class EmployeeApi {
     );
   }
 
-  addSalaryEntry(employeeId: number, request: AddSalaryEntryRequest): Promise<SalaryEntry> {
+  updateSalaryEntry(
+    employeeId: number,
+    entryId: number,
+    request: SalaryEntryRequest,
+  ): Promise<SalaryEntry> {
+    return firstValueFrom(
+      this.http.put<SalaryEntry>(
+        `${this.apiBaseUrl}/employees/${employeeId}/salary-entries/${entryId}`,
+        request,
+      ),
+    );
+  }
+
+  deleteSalaryEntry(employeeId: number, entryId: number): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(
+        `${this.apiBaseUrl}/employees/${employeeId}/salary-entries/${entryId}`,
+      ),
+    ).then(() => undefined);
+  }
+
+  listSalaryChanges(employeeId: number): Promise<SalaryChange[]> {
+    return firstValueFrom(
+      this.http.get<SalaryChange[]>(`${this.apiBaseUrl}/employees/${employeeId}/salary-changes`),
+    );
+  }
+
+  addSalaryEntry(employeeId: number, request: SalaryEntryRequest): Promise<SalaryEntry> {
     return firstValueFrom(
       this.http.post<SalaryEntry>(
         `${this.apiBaseUrl}/employees/${employeeId}/salary-entries`,

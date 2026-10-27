@@ -1,0 +1,22 @@
+@if (changes().length === 0) {
+  <p>No changes yet.</p>
+} @else {
+  <table mat-table [dataSource]="changes()" class="changes">
+    <ng-container matColumnDef="changedAt">
+      <th mat-header-cell *matHeaderCellDef>When (UTC)</th>
+      <td mat-cell *matCellDef="let change">
+        {{ change.changedAt | date: 'yyyy-MM-dd HH:mm' : 'UTC' }}
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="action">
+      <th mat-header-cell *matHeaderCellDef>Action</th>
+      <td mat-cell *matCellDef="let change">{{ actionText(change) }}</td>
+    </ng-container>
+    <ng-container matColumnDef="change">
+      <th mat-header-cell *matHeaderCellDef>Salary</th>
+      <td mat-cell *matCellDef="let change">{{ summary(change) }}</td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="columns"></tr>
+    <tr mat-row *matRowDef="let row; columns: columns"></tr>
+  </table>
+}
