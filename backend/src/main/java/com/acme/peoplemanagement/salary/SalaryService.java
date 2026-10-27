@@ -1,14 +1,18 @@
 package com.acme.peoplemanagement.salary;
 
 import com.acme.peoplemanagement.salary.errors.CurrencyRequiredException;
+import com.acme.peoplemanagement.salary.errors.SalaryEntryNotFoundException;
 import com.acme.peoplemanagement.salary.rules.EmploymentPeriod;
 import com.acme.peoplemanagement.salary.rules.HistoryEntry;
 import com.acme.peoplemanagement.salary.rules.IdentifiedEntry;
 import com.acme.peoplemanagement.salary.rules.Money;
 import com.acme.peoplemanagement.salary.rules.NewSalaryEntry;
+import com.acme.peoplemanagement.salary.rules.SalaryChange;
 import com.acme.peoplemanagement.salary.rules.SalaryHistory;
 import com.acme.peoplemanagement.salary.rules.SalaryTimelineValidator;
 import com.acme.peoplemanagement.salary.rules.TimelineEntry;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -25,10 +29,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class SalaryService {
 
     private final SalaryEntryRepository salaryEntryRepository;
+    private final SalaryEntryChangeRepository changeRepository;
+    private final Clock clock;
     private final SalaryTimelineValidator validator = new SalaryTimelineValidator();
 
-    SalaryService(final SalaryEntryRepository salaryEntryRepository) {
+    SalaryService(
+            final SalaryEntryRepository salaryEntryRepository,
+            final SalaryEntryChangeRepository changeRepository,
+            final Clock clock) {
         this.salaryEntryRepository = salaryEntryRepository;
+        this.changeRepository = changeRepository;
+        this.clock = clock;
     }
 
     /** Checks a first entry before any row exists, so a rule is reported before the database's own checks. */
@@ -69,7 +80,63 @@ public class SalaryService {
         validator.validate(period, timelineWith(stored, candidate), today);
         final TimelineEntry added = withResolvedCurrency(candidate, stored);
         final long id = salaryEntryRepository.save(new SalaryEntry(employeeId, added)).id();
+        logChange(employeeId, id, null, added);
         return historyEntryWithId(id, stored, added, today);
+    }
+
+    /**
+     * Replaces an entry's date, amount and currency after checking the resulting timeline. An omitted currency keeps
+     * the entry's own. An edit that changes nothing writes no change row. The caller holds the employee row lock.
+     */
+    @Transactional
+    public HistoryEntry editEntry(
+            final long employeeId,
+            final EmploymentPeriod period,
+            final long entryId,
+            final NewSalaryEntry changed,
+            final LocalDate today) {
+        final SalaryEntry entry = entryOf(employeeId, entryId);
+        final TimelineEntry before = entry.toTimelineEntry();
+        final String currency =
+                changed.currencyCode() == null ? before.salary().currencyCode() : changed.currencyCode();
+        final TimelineEntry after =
+                new TimelineEntry(changed.effectiveDate(), new Money(changed.amountMinor(), currency));
+        final List<IdentifiedEntry> others = storedEntriesOf(employeeId).stream()
+                .filter(stored -> stored.id() != entryId).toList();
+        validator.validate(period, timelineWith(others, after), today);
+        if (!after.equals(before)) {
+            entry.change(after);
+            logChange(employeeId, entryId, before, after);
+        }
+        return historyEntryWithId(entryId, others, after, today);
+    }
+
+    /** Deletes an entry unless that would break a rule, such as leaving the employee with no current salary. */
+    @Transactional
+    public void deleteEntry(
+            final long employeeId, final EmploymentPeriod period, final long entryId, final LocalDate today) {
+        final SalaryEntry entry = entryOf(employeeId, entryId);
+        final List<TimelineEntry> remaining = storedEntriesOf(employeeId).stream()
+                .filter(stored -> stored.id() != entryId).map(IdentifiedEntry::entry).toList();
+        validator.validate(period, remaining, today);
+        logChange(employeeId, entryId, entry.toTimelineEntry(), null);
+        salaryEntryRepository.delete(entry);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SalaryChange> changes(final long employeeId) {
+        return changeRepository.findByEmployeeIdOrderByChangedAtDescIdDesc(employeeId).stream()
+                .map(SalaryEntryChange::toChange).toList();
+    }
+
+    private SalaryEntry entryOf(final long employeeId, final long entryId) {
+        return salaryEntryRepository.findByIdAndEmployeeId(entryId, employeeId)
+                .orElseThrow(() -> new SalaryEntryNotFoundException(entryId));
+    }
+
+    private void logChange(
+            final long employeeId, final long entryId, final TimelineEntry before, final TimelineEntry after) {
+        changeRepository.save(new SalaryEntryChange(employeeId, entryId, before, after, Instant.now(clock)));
     }
 
     /** Checks the stored timeline against an employment period, for a change to the hire or termination date. */

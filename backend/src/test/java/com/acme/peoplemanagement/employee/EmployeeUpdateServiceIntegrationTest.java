@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.acme.peoplemanagement.employee.api.CreateEmployeeRequest;
 import com.acme.peoplemanagement.employee.api.EmployeeResponse;
 import com.acme.peoplemanagement.employee.api.InitialSalaryRequest;
+import com.acme.peoplemanagement.employee.api.SalaryEntryRequest;
 import com.acme.peoplemanagement.employee.api.UpdateEmployeeRequest;
 import com.acme.peoplemanagement.employee.errors.EmailAlreadyExistsException;
 import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
@@ -224,7 +225,7 @@ class EmployeeUpdateServiceIntegrationTest {
 
     @Test
     void addingASalaryEntryDoesNotChangeTheVersion() {
-        employeeSalaryService.add(asha.id(), new com.acme.peoplemanagement.employee.api.AddSalaryEntryRequest(
+        employeeSalaryService.add(asha.id(), new SalaryEntryRequest(
                 LocalDate.of(2026, 4, 1), 150L, "INR"));
 
         assertThat(employeeService.get(asha.id()).version()).isZero();
@@ -232,7 +233,7 @@ class EmployeeUpdateServiceIntegrationTest {
 
     @Test
     void acceptsAFormThatWasOpenedBeforeASalaryChange() {
-        employeeSalaryService.add(asha.id(), new com.acme.peoplemanagement.employee.api.AddSalaryEntryRequest(
+        employeeSalaryService.add(asha.id(), new SalaryEntryRequest(
                 LocalDate.of(2026, 4, 1), 150L, "INR"));
 
         final EmployeeResponse updated = employeeService.update(asha.id(), changeName("Renamed", 0L));
@@ -242,12 +243,26 @@ class EmployeeUpdateServiceIntegrationTest {
 
     @Test
     void revalidatesAnOldFormAgainstASalaryChangeMadeSinceItWasOpened() {
-        employeeSalaryService.add(asha.id(), new com.acme.peoplemanagement.employee.api.AddSalaryEntryRequest(
+        employeeSalaryService.add(asha.id(), new SalaryEntryRequest(
                 LocalDate.of(2026, 4, 1), 150L, "INR"));
 
         assertThatThrownBy(() -> employeeService.update(asha.id(), withTermination(LocalDate.of(2025, 1, 1), 0L)))
                 .isInstanceOfSatisfying(SalaryRuleViolation.class, violation ->
                         assertThat(violation.code()).isEqualTo(SalaryRuleCode.SALARY_AFTER_TERMINATION));
+    }
+
+    @Test
+    void allowsTheTerminationOnceTheFutureRaiseThatBlockedItIsDeleted() {
+        final var raise = employeeSalaryService.add(
+                asha.id(), new SalaryEntryRequest(LocalDate.of(2027, 1, 1), 150L, "INR"));
+        assertThatThrownBy(() -> employeeService.update(asha.id(), withTermination(TODAY.minusDays(1), 0L)))
+                .isInstanceOfSatisfying(SalaryRuleViolation.class, violation ->
+                        assertThat(violation.code()).isEqualTo(SalaryRuleCode.SALARY_AFTER_TERMINATION));
+
+        employeeSalaryService.delete(asha.id(), raise.id());
+        final EmployeeResponse left = employeeService.update(asha.id(), withTermination(TODAY.minusDays(1), 0L));
+
+        assertThat(left.status()).isEqualTo(EmployeeStatus.FORMER);
     }
 
     @Test

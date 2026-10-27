@@ -50,6 +50,13 @@ class SalaryEntry {
         return id;
     }
 
+    /** Replaces the date, amount and currency. The id stays, so the change log can follow the entry. */
+    void change(final TimelineEntry entry) {
+        this.effectiveDate = entry.effectiveDate();
+        this.amountMinor = entry.salary().amountMinor();
+        this.currencyCode = entry.salary().currencyCode();
+    }
+
     TimelineEntry toTimelineEntry() {
         return new TimelineEntry(effectiveDate, new Money(amountMinor, currencyCode));
     }

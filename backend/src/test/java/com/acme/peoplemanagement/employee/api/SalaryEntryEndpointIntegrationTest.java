@@ -1,8 +1,10 @@
 package com.acme.peoplemanagement.employee.api;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -90,6 +92,45 @@ class SalaryEntryEndpointIntegrationTest {
     void answers404ForAnEmployeeThatDoesNotExist() throws Exception {
         postEntry(-1L, "{\"effectiveDate\": \"2026-04-01\", \"amountMinor\": 100}").andExpect(status().isNotFound());
         mockMvc.perform(get("/api/employees/-1/salary-entries").with(login())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void addsEditsAndDeletesAnEntryAndKeepsTheChangeLogOverHttp() throws Exception {
+        final long employeeId = employeeHiredOn("2024-04-01", "log@acme.example");
+        final String added = postEntry(employeeId,
+                "{\"effectiveDate\": \"2026-04-01\", \"amountMinor\": 150000000}")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        final String entryUrl = "/api/employees/" + employeeId + "/salary-entries/"
+                + added.replaceAll(".*\"id\":(\\d+).*", "$1");
+
+        mockMvc.perform(put(entryUrl).with(login()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"effectiveDate\": \"2026-05-01\", \"amountMinor\": 160000000}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.effectiveDate").value("2026-05-01"))
+                .andExpect(jsonPath("$.currency").value("INR"));
+        mockMvc.perform(delete(entryUrl).with(login())).andExpect(status().isNoContent());
+        mockMvc.perform(delete(entryUrl).with(login())).andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/employees/" + employeeId + "/salary-changes").with(login()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].action").value("DELETED"))
+                .andExpect(jsonPath("$[0].before.amountMinor").value(160000000))
+                .andExpect(jsonPath("$[1].action").value("EDITED"))
+                .andExpect(jsonPath("$[1].before.effectiveDate").value("2026-04-01"))
+                .andExpect(jsonPath("$[1].after.effectiveDate").value("2026-05-01"))
+                .andExpect(jsonPath("$[2].action").value("ADDED"));
+    }
+
+    @Test
+    void refusesToDeleteTheOnlyEntryOverHttp() throws Exception {
+        final long employeeId = employeeHiredOn("2024-04-01", "only@acme.example");
+        final Long only = jdbcTemplate.queryForObject(
+                "select id from salary_entry where employee_id = ?", Long.class, employeeId);
+
+        mockMvc.perform(delete("/api/employees/" + employeeId + "/salary-entries/" + only).with(login()))
+                .andExpect(status().is(422))
+                .andExpect(jsonPath("$.code").value("NO_CURRENT_SALARY"));
     }
 
     private long employeeHiredOn(final String hireDate, final String email) {

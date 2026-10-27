@@ -7,8 +7,11 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import java.time.LocalDate;
 
-/** A salary entry to add. The currency is optional: it defaults to that of the entry before the date. */
-public record AddSalaryEntryRequest(
+/**
+ * A salary entry to add or to change to. The currency is optional: an added entry takes that of the entry before its
+ * date, and an edited one keeps its own.
+ */
+public record SalaryEntryRequest(
         @NotNull LocalDate effectiveDate,
         @NotNull @Min(1) @Max(Money.MAX_AMOUNT_MINOR) Long amountMinor,
         @Pattern(regexp = "[A-Z]{3}") String currency) {

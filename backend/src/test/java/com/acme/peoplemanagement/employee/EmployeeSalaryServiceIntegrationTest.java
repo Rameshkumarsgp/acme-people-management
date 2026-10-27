@@ -3,15 +3,19 @@ package com.acme.peoplemanagement.employee;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.acme.peoplemanagement.employee.api.AddSalaryEntryRequest;
+import com.acme.peoplemanagement.employee.api.SalaryEntryRequest;
+import com.acme.peoplemanagement.employee.api.SalaryChangeResponse;
 import com.acme.peoplemanagement.employee.api.SalaryEntryResponse;
 import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
 import com.acme.peoplemanagement.employee.errors.UnknownReferenceException;
+import com.acme.peoplemanagement.salary.errors.SalaryEntryNotFoundException;
+import com.acme.peoplemanagement.salary.rules.ChangeAction;
 import com.acme.peoplemanagement.salary.rules.SalaryRuleCode;
 import com.acme.peoplemanagement.salary.rules.SalaryRuleViolation;
 import com.acme.peoplemanagement.support.IntegrationTest;
 import com.acme.peoplemanagement.support.TestEmployees;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
@@ -84,6 +88,101 @@ class EmployeeSalaryServiceIntegrationTest {
     }
 
     @Test
+    void editsAnEntryAndShowsTheChangeInTheLog() {
+        final SalaryEntryResponse raise = employeeSalaryService.add(employeeId, request("2026-04-01", 150L, "INR"));
+
+        final SalaryEntryResponse edited = employeeSalaryService.edit(employeeId, raise.id(),
+                request("2026-05-01", 160L, null));
+
+        assertThat(edited.id()).isEqualTo(raise.id());
+        assertThat(edited.amountMinor()).isEqualTo(160L);
+        assertThat(edited.currency()).isEqualTo("INR");
+        final SalaryChangeResponse change = employeeSalaryService.changes(employeeId).getFirst();
+        assertThat(change.action()).isEqualTo(ChangeAction.EDITED);
+        assertThat(change.before().amountMinor()).isEqualTo(150L);
+        assertThat(change.after().amountMinor()).isEqualTo(160L);
+        assertThat(change.after().effectiveDate()).isEqualTo(LocalDate.of(2026, 5, 1));
+    }
+
+    @Test
+    void deletesAnEntryAndRefusesToDeleteTheLastOne() {
+        final SalaryEntryResponse raise = employeeSalaryService.add(employeeId, request("2026-04-01", 150L, "INR"));
+        final long first = employeeSalaryService.list(employeeId).getLast().id();
+
+        employeeSalaryService.delete(employeeId, raise.id());
+
+        assertThat(employeeSalaryService.list(employeeId)).hasSize(1);
+        assertThatThrownBy(() -> employeeSalaryService.delete(employeeId, first))
+                .isInstanceOfSatisfying(SalaryRuleViolation.class,
+                        violation -> assertThat(violation.code()).isEqualTo(SalaryRuleCode.NO_CURRENT_SALARY));
+        assertThat(employeeSalaryService.changes(employeeId)).extracting(SalaryChangeResponse::action)
+                .containsExactly(ChangeAction.DELETED, ChangeAction.ADDED);
+    }
+
+    @Test
+    void reportsAnEmployeeOrAnEntryThatDoesNotExistOnEditDeleteAndChanges() {
+        assertThatThrownBy(() -> employeeSalaryService.edit(-1L, 1L, request("2026-04-01", 1L, "INR")))
+                .isInstanceOf(EmployeeNotFoundException.class);
+        assertThatThrownBy(() -> employeeSalaryService.delete(-1L, 1L))
+                .isInstanceOf(EmployeeNotFoundException.class);
+        assertThatThrownBy(() -> employeeSalaryService.changes(-1L)).isInstanceOf(EmployeeNotFoundException.class);
+        assertThatThrownBy(() -> employeeSalaryService.delete(employeeId, -1L))
+                .isInstanceOf(SalaryEntryNotFoundException.class);
+    }
+
+    @Test
+    void refusesAnEditAfterTheEmployeeLeft() {
+        final long leaver = employees.insert(
+                "Leaver", "edit-leaver@acme.example", HIRE_DATE, LocalDate.of(2026, 10, 9));
+        employees.insertSalary(leaver, HIRE_DATE, 100L, "INR");
+        final long entryId = employeeSalaryService.list(leaver).getFirst().id();
+
+        assertThatThrownBy(() -> employeeSalaryService.edit(leaver, entryId, request("2026-10-10", 100L, "INR")))
+                .isInstanceOfSatisfying(SalaryRuleViolation.class,
+                        violation -> assertThat(violation.code()).isEqualTo(SalaryRuleCode.SALARY_AFTER_TERMINATION));
+    }
+
+    @Test
+    void leavesExactlyOneEntryWhenTwoDeletesRaceToRemoveTheLastTwo() throws Exception {
+        final ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            for (int round = 0; round < RACE_ROUNDS; round++) {
+                final long subject = employees.insert("race-delete" + round + "@acme.example", HIRE_DATE);
+                employees.insertSalary(subject, HIRE_DATE, 100L, "INR");
+                employees.insertSalary(subject, LocalDate.of(2025, 4, 1), 120L, "INR");
+
+                assertThat(deleteBothAtOnce(pool, subject)).isEqualTo(1);
+                assertThat(employeeSalaryService.list(subject)).hasSize(1);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    /** Deletes every entry of the employee at the same moment and answers how many deletes were accepted. */
+    private int deleteBothAtOnce(final ExecutorService pool, final long subject) throws Exception {
+        final CyclicBarrier together = new CyclicBarrier(2);
+        final List<Future<Boolean>> results = new ArrayList<>();
+        for (final SalaryEntryResponse entry : employeeSalaryService.list(subject)) {
+            final Callable<Boolean> delete = () -> {
+                together.await(10, TimeUnit.SECONDS);
+                try {
+                    employeeSalaryService.delete(subject, entry.id());
+                    return true;
+                } catch (SalaryRuleViolation violation) {
+                    return false;
+                }
+            };
+            results.add(pool.submit(delete));
+        }
+        int accepted = 0;
+        for (final Future<Boolean> result : results) {
+            accepted += result.get(30, TimeUnit.SECONDS) ? 1 : 0;
+        }
+        return accepted;
+    }
+
+    @Test
     void listsTheHistoryNewestFirst() {
         employeeSalaryService.add(employeeId, request("2026-04-01", 150L, "INR"));
 
@@ -136,7 +235,7 @@ class EmployeeSalaryServiceIntegrationTest {
         final Callable<String> add = () -> {
             bothReady.await();
             try {
-                employeeSalaryService.add(employeeId, new AddSalaryEntryRequest(date, 150L, "INR"));
+                employeeSalaryService.add(employeeId, new SalaryEntryRequest(date, 150L, "INR"));
                 return "added";
             } catch (RuntimeException exception) {
                 return exception.getClass().getSimpleName() + ":" + exception.getMessage();
@@ -153,7 +252,7 @@ class EmployeeSalaryServiceIntegrationTest {
         return count == null ? 0 : count;
     }
 
-    private static AddSalaryEntryRequest request(final String date, final long amountMinor, final String currency) {
-        return new AddSalaryEntryRequest(LocalDate.parse(date), amountMinor, currency);
+    private static SalaryEntryRequest request(final String date, final long amountMinor, final String currency) {
+        return new SalaryEntryRequest(LocalDate.parse(date), amountMinor, currency);
     }
 }

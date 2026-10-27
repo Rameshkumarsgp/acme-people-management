@@ -12,4 +12,6 @@ interface SalaryEntryRepository extends JpaRepository<SalaryEntry, Long> {
             long employeeId, LocalDate asOf);
 
     List<SalaryEntry> findByEmployeeIdOrderByEffectiveDateDesc(long employeeId);
+
+    Optional<SalaryEntry> findByIdAndEmployeeId(long id, long employeeId);
 }
