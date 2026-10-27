@@ -1,6 +1,7 @@
 package com.acme.peoplemanagement.directory.rules;
 
-import com.acme.peoplemanagement.directory.errors.InvalidDirectoryRequestException;
+import com.acme.peoplemanagement.readmodel.InvalidQueryException;
+import com.acme.peoplemanagement.readmodel.StatusFilter;
 
 /**
  * A checked directory request. The search pattern, country and currency are null when not given.
@@ -12,7 +13,7 @@ public record DirectoryQuery(
         Integer departmentId,
         Integer jobTitleId,
         String currency,
-        DirectoryStatus status,
+        StatusFilter status,
         DirectorySort sort,
         int page,
         int size) {
@@ -28,7 +29,7 @@ public record DirectoryQuery(
                 params.departmentId(),
                 params.jobTitleId(),
                 currency,
-                DirectoryStatus.parse(params.status()),
+                StatusFilter.parse(params.status()),
                 DirectorySort.parse(params.sort(), currency),
                 page(params.page()),
                 size(params.size()));
@@ -43,7 +44,7 @@ public record DirectoryQuery(
             return 0;
         }
         if (page < 0) {
-            throw new InvalidDirectoryRequestException("page", "Page must be 0 or more.");
+            throw new InvalidQueryException("page", "Page must be 0 or more.");
         }
         return page;
     }
@@ -53,7 +54,7 @@ public record DirectoryQuery(
             return DEFAULT_SIZE;
         }
         if (size < 1 || size > MAX_SIZE) {
-            throw new InvalidDirectoryRequestException("size", "Size must be between 1 and 100.");
+            throw new InvalidQueryException("size", "Size must be between 1 and 100.");
         }
         return size;
     }

@@ -14,7 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.acme.peoplemanagement.auth.AuthTestSupport;
 import com.acme.peoplemanagement.directory.DirectoryService;
 import com.acme.peoplemanagement.directory.rules.DirectoryQuery;
-import com.acme.peoplemanagement.directory.rules.DirectoryStatus;
+import com.acme.peoplemanagement.readmodel.StatusFilter;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -71,7 +71,7 @@ class DirectoryEndpointTest {
         getDirectory("").andExpect(status().isOk());
 
         final DirectoryQuery query = capturedQuery();
-        assertThat(query.status()).isEqualTo(DirectoryStatus.ACTIVE);
+        assertThat(query.status()).isEqualTo(StatusFilter.ACTIVE);
         assertThat(query.page()).isZero();
         assertThat(query.size()).isEqualTo(20);
         assertThat(query.sort().orderBy()).isEqualTo("lower(e.full_name) asc, e.id");
@@ -90,7 +90,7 @@ class DirectoryEndpointTest {
         assertThat(query.departmentId()).isEqualTo(3);
         assertThat(query.jobTitleId()).isEqualTo(12);
         assertThat(query.currency()).isEqualTo("INR");
-        assertThat(query.status()).isEqualTo(DirectoryStatus.ALL);
+        assertThat(query.status()).isEqualTo(StatusFilter.ALL);
         assertThat(query.sort().orderBy()).isEqualTo("cs.amount_minor desc, e.id");
         assertThat(query.page()).isEqualTo(2);
         assertThat(query.size()).isEqualTo(50);

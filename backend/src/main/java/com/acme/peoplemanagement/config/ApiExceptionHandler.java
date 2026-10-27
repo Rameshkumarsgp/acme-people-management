@@ -1,11 +1,12 @@
 package com.acme.peoplemanagement.config;
 
-import com.acme.peoplemanagement.directory.errors.InvalidDirectoryRequestException;
+import com.acme.peoplemanagement.readmodel.InvalidQueryException;
 import com.acme.peoplemanagement.employee.errors.EmailAlreadyExistsException;
 import com.acme.peoplemanagement.employee.errors.EmployeeNotFoundException;
 import com.acme.peoplemanagement.employee.errors.StaleVersionException;
 import com.acme.peoplemanagement.employee.errors.UnknownReferenceException;
 import com.acme.peoplemanagement.salary.errors.CurrencyRequiredException;
+import com.acme.peoplemanagement.salary.errors.SalaryEntryNotFoundException;
 import com.acme.peoplemanagement.salary.rules.SalaryRuleViolation;
 import java.util.List;
 import java.util.Objects;
@@ -40,6 +41,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problemWithCode(HttpStatus.CONFLICT, exception.getMessage(), "EMAIL_ALREADY_EXISTS");
     }
 
+    @ExceptionHandler(SalaryEntryNotFoundException.class)
+    ProblemDetail salaryEntryNotFound(final SalaryEntryNotFoundException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
     @ExceptionHandler(StaleVersionException.class)
     ProblemDetail staleVersion(final StaleVersionException exception) {
         return problemWithCode(HttpStatus.CONFLICT, exception.getMessage(), "VERSION_CONFLICT");
@@ -60,8 +66,8 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return invalidRequest(List.of(new FieldProblem(exception.field(), exception.getMessage())));
     }
 
-    @ExceptionHandler(InvalidDirectoryRequestException.class)
-    ProblemDetail invalidDirectoryRequest(final InvalidDirectoryRequestException exception) {
+    @ExceptionHandler(InvalidQueryException.class)
+    ProblemDetail invalidQuery(final InvalidQueryException exception) {
         return invalidRequest(List.of(new FieldProblem(exception.field(), exception.getMessage())));
     }
 

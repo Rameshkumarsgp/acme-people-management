@@ -1,6 +1,6 @@
 package com.acme.peoplemanagement.directory.rules;
 
-import com.acme.peoplemanagement.directory.errors.InvalidDirectoryRequestException;
+import com.acme.peoplemanagement.readmodel.InvalidQueryException;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -46,9 +46,9 @@ public final class DirectorySort {
         final SortField field = Arrays.stream(SortField.values())
                 .filter(candidate -> candidate.apiName.equals(parts[0]))
                 .findFirst()
-                .orElseThrow(() -> new InvalidDirectoryRequestException("sort", "Sort by one of " + FIELD_LIST + "."));
+                .orElseThrow(() -> new InvalidQueryException("sort", "Sort by one of " + FIELD_LIST + "."));
         if (field == SortField.SALARY && (currency == null || currency.isBlank())) {
-            throw new InvalidDirectoryRequestException("sort", "Sorting by salary needs a currency, because salaries "
+            throw new InvalidQueryException("sort", "Sorting by salary needs a currency, because salaries "
                     + "in different currencies cannot be compared.");
         }
         return new DirectorySort(field, isDescending(parts));
@@ -65,7 +65,7 @@ public final class DirectorySort {
         }
         final String direction = parts[1].toLowerCase(Locale.ROOT);
         if (parts.length > 2 || !("asc".equals(direction) || "desc".equals(direction))) {
-            throw new InvalidDirectoryRequestException("sort", "The direction must be asc or desc.");
+            throw new InvalidQueryException("sort", "The direction must be asc or desc.");
         }
         return "desc".equals(direction);
     }

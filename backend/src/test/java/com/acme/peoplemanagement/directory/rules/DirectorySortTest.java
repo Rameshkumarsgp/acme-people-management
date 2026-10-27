@@ -3,7 +3,7 @@ package com.acme.peoplemanagement.directory.rules;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
-import com.acme.peoplemanagement.directory.errors.InvalidDirectoryRequestException;
+import com.acme.peoplemanagement.readmodel.InvalidQueryException;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -79,7 +79,7 @@ class DirectorySortTest {
 
     private static void assertRejected(
             final String sort, final String currency, final String field, final String message) {
-        assertThatExceptionOfType(InvalidDirectoryRequestException.class)
+        assertThatExceptionOfType(InvalidQueryException.class)
                 .isThrownBy(() -> DirectorySort.parse(sort, currency))
                 .withMessage(message)
                 .satisfies(exception -> assertThat(exception.field()).isEqualTo(field));

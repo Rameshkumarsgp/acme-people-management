@@ -3,7 +3,8 @@ package com.acme.peoplemanagement.directory.rules;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
-import com.acme.peoplemanagement.directory.errors.InvalidDirectoryRequestException;
+import com.acme.peoplemanagement.readmodel.InvalidQueryException;
+import com.acme.peoplemanagement.readmodel.StatusFilter;
 import org.junit.jupiter.api.Test;
 
 class DirectoryQueryTest {
@@ -20,7 +21,7 @@ class DirectoryQueryTest {
         assertThat(query.departmentId()).isNull();
         assertThat(query.jobTitleId()).isNull();
         assertThat(query.currency()).isNull();
-        assertThat(query.status()).isEqualTo(DirectoryStatus.ACTIVE);
+        assertThat(query.status()).isEqualTo(StatusFilter.ACTIVE);
         assertThat(query.sort().orderBy()).isEqualTo("lower(e.full_name) asc, e.id");
         assertThat(query.page()).isZero();
         assertThat(query.size()).isEqualTo(20);
@@ -36,7 +37,7 @@ class DirectoryQueryTest {
         assertThat(query.departmentId()).isEqualTo(3);
         assertThat(query.jobTitleId()).isEqualTo(12);
         assertThat(query.currency()).isEqualTo("INR");
-        assertThat(query.status()).isEqualTo(DirectoryStatus.ALL);
+        assertThat(query.status()).isEqualTo(StatusFilter.ALL);
         assertThat(query.sort().orderBy()).isEqualTo("cs.amount_minor desc, e.id");
         assertThat(query.page()).isEqualTo(2);
         assertThat(query.size()).isEqualTo(50);
@@ -97,7 +98,7 @@ class DirectoryQueryTest {
     }
 
     private static void assertRejected(final DirectoryParams params, final String field, final String message) {
-        assertThatExceptionOfType(InvalidDirectoryRequestException.class)
+        assertThatExceptionOfType(InvalidQueryException.class)
                 .isThrownBy(() -> DirectoryQuery.from(params))
                 .withMessage(message)
                 .satisfies(exception -> assertThat(exception.field()).isEqualTo(field));
