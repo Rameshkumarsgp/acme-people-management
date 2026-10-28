@@ -391,7 +391,7 @@ Doing the work without asking makes it fast, and it moves the review to afterwar
 
 ### What we did
 
-Slice 7 (edit and delete a salary entry, and the change log), slice 8 (the insights and the dashboard) and the wrap-up (the whole app in `docker compose`, the README, the docs). I kept the instruction not to ask permission, so the AI made the design decisions and wrote each with its reason in the specs and in `docs/design.md`. I ran the commits from scripts it wrote.
+Slice 7 (edit and delete a salary entry, and the change log), slice 8 (the insights and the dashboard) and the wrap-up (the README and the docs). I kept the instruction not to ask permission, so the AI made the design decisions and wrote each with its reason in the specs and in `docs/design.md`. I ran the commits from scripts it wrote.
 
 ### Prompts (summarized)
 
@@ -402,7 +402,7 @@ Slice 7 (edit and delete a salary entry, and the change log), slice 8 (the insig
 | "build the FE as well we will test live" | The dashboard, with 25 specs for the home page alone |
 | (the error screenshot) "Could not load the insights" | My API was an old process from 24 Oct, started before the code existed. A restart fixed it |
 | "give me script and commit messages" | One script with seven commits, each taking only its own paths |
-| "done, continue with the wrap-up" | Dockerfiles, nginx, compose with a seed that runs only on an empty database, the README and these docs |
+| "done, continue with the wrap-up" | The README and these docs. It also built Dockerfiles, nginx and a compose setup with a seed that runs only on an empty database, which I decided not to commit |
 
 ### What the AI got wrong or I had to correct
 
@@ -414,7 +414,7 @@ Slice 7 (edit and delete a salary entry, and the change log), slice 8 (the insig
 | The second real run showed a ranking in the previous currency while the groups reloaded: filtering to India asked for the highest paid in AUD, found nobody and said so. | The ranking currency now comes from the groups only once they match the filters. A test and a broken-code proof cover it. |
 | My total fixture was 18014398509481982. A browser can hold that exactly, because it is even and below 2^54, so converting it to a number did not change it and the mutation survived. | I used an odd value, 18014398509481983, which a number cannot hold, and the mutation then failed. |
 | `sed -i` without an empty argument failed on macOS and stopped a chain of commands, so one rename did not happen. | I read the error, used `sed -i ''` and reran the step. |
-| I started the API with `bootRun` without the datasource variables and got "Failed to determine a suitable driver class". | I stopped, did not guess at secrets, and said what I did not know. I then ran the stack in a separate compose project on other ports, so your database and ports were untouched. |
+| I started the API with `bootRun` without the datasource variables and got "Failed to determine a suitable driver class". | I stopped, did not guess at secrets, and said what I did not know. I then ran a throwaway stack in a separate compose project on other ports, so your database and ports were untouched. |
 | One mutation replaced text that was not in the file and "survived" without changing anything. Another was a compile error. | Both showed as survivors with no failing test. I redid them with real mutations. |
 
 ### Decisions the AI made on its own, for me to review
@@ -423,19 +423,16 @@ Slice 7 (edit and delete a salary entry, and the change log), slice 8 (the insig
 - **Extremes take the same filters as the insights,** because the requirements ask for the highest and lowest paid "within any of the above".
 - **The total is a decimal string** and every other figure is a number. **The median is exact up to 2^52** and can be one unit low above it. A test pins this and it is recorded in the trade-offs.
 - **The dashboard is the home page,** so the old Home component became the dashboard, with the greeting and the links at the top.
-- **The seed runs on `docker compose up` only when the database is empty,** decided by asking the API for the employee count.
-- **nginx runs unprivileged** and `/api` is the only path it forwards.
-- Read decisions 34 to 41 in `docs/design.md` before I rely on them.
+- **The Docker setup (compose with the API, nginx and a seed that runs only on an empty database) was built and verified, then left out by me.** The README and the design describe only what is committed.
+- Read decisions 34 to 40 in `docs/design.md` before I rely on them.
 
 ### What was verified, not assumed
 
 | Question | Finding |
 |---|---|
 | Do the statistics match an independent query? | For Australia, 436 people: headcount, total, min, median, mean and max were identical to a separate SQL query on the same database. |
-| Does the whole app start from one command? | Yes, in a separate compose project: PostgreSQL, API, web and seed. The seed loaded 10,000 rows with 0 rejected in 9.3 s, and the app was served through nginx. |
-| Does a second `up` load the seed again? | No. The log says "The database already has 10000 employees. Seed skipped." and it exited 0. |
-| Is the API protected behind nginx? | Yes: `/api/insights` without a login answered 401. `/actuator` is not proxied, so nginx answers it with the app's page. |
-| Does the dashboard work in a real browser? | Yes. Nine steps on the compose stack: formatted figures from the first paint, the ranking, tenure bands, state in the address, job title in country (240 groups), a country filter, the lowest paid sorted ascending, opening a person, and Back returning to the same view. No console errors. |
+| Did a full Docker stack work? | In a throwaway compose project: PostgreSQL, API, web and seed. The seed loaded 10,000 rows with 0 rejected in 9.3 s and a second `up` skipped it. It is not in the repository. |
+| Does the dashboard work in a real browser? | Yes, on that throwaway stack. Nine steps: formatted figures from the first paint, the ranking, tenure bands, state in the address, job title in country (240 groups), a country filter, the lowest paid sorted ascending, opening a person, and Back returning to the same view. No console errors. |
 | How fast is each insight? | 9 to 33 ms on the 10,000-employee seed. The table is in the trade-offs. |
 
 ### What I would do differently

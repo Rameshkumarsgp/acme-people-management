@@ -224,7 +224,7 @@ A plain contains-search on name and email took about 5.5 ms whether it matched 4
 - **Tenure and the 240 title-by-country groups are many rows.** Tenure by band and currency is 36 rows on the seed, and job title in country is 240. There are no charts, so the table is long. A chart is a UI feature for later.
 - **The ranking waits for the groups when no currency is chosen.** Its default currency is the first group's, so it is asked for after the groups answer. One more round trip on first paint, in exchange for never ranking in a stale currency.
 
-**Measured.** Through the real endpoints behind nginx in `docker compose`, including the login check, JSON and HTTP, on the owner's MacBook Pro with PostgreSQL 17 in Docker, on the 10,000-employee seed (curl total time, 9 runs after a warm-up):
+**Measured.** Through the real endpoints behind nginx in a throwaway Docker setup (not part of the repository), including the login check, JSON and HTTP, on the owner's MacBook Pro with PostgreSQL 17 in Docker, on the 10,000-employee seed (curl total time, 9 runs after a warm-up):
 
 | Request | Min | Median | Max |
 |---|---|---|---|
@@ -251,17 +251,3 @@ Tenure is the slowest because its band is computed from two dates for every row.
 | Convert currencies to one | Needs rates with a documented date. Out of scope, per the requirements. |
 
 **Related.** [design.md](design.md), decisions 34 to 40.
-
-## `docker compose up` runs everything, and the seed runs only on an empty database
-
-**Decision.** Four containers: PostgreSQL, the API, `web` (nginx, unprivileged, serves the Angular build and proxies `/api`, so the browser sees one origin and needs no CORS) and a one-shot `seed`. The seed script asks the API for the employee count with the app's own login and loads the 10,000 employees only when it is 0, so running `up` again changes nothing.
-
-**Why.** A reviewer should run one command and see data. Without the check, a second `up` would try to load 10,000 duplicate emails and reject every row, which took 75.9 s when measured with the loader.
-
-**What it costs.**
-
-- **The first start is slower than later ones.** It builds two images (the API with Gradle, the web app with npm), and the seed runs after the API is healthy. I did not time the build. In one run the load itself took 9.3 s (10,000 loaded, 0 rejected). The earlier 33 s was measured with the loader on the host, so the two are not the same setup, and the difference was not investigated.
-- **The login lockout counts per connection address.** Behind nginx every browser has the proxy's address, so five failed attempts lock everyone for a minute. The app does not trust forwarded-address headers, because a client can forge them. This is acceptable for one shared HR login and wrong for many users.
-- **Images are tagged by major version, not pinned by digest,** and the build downloads dependencies, so it needs the network.
-- **`/actuator` is not proxied.** The health check runs inside the API container.
-

@@ -139,7 +139,6 @@ Settled while designing the data model and API. Each was debated against alterna
 | 38 | Tenure is **completed years** from the hire date to the earlier of today and the termination date. The bands are under 1 year, 1 to under 3, 3 to under 5, 5 to under 10, and 10 or more. | As the requirements say. A hire date exactly one year ago is in the 1 to 3 band and one day later is under 1. |
 | 39 | An `OVERALL` dimension (everyone in one group per currency) is the sixth, for the requirements' "How many people do we pay, and what is the total payroll?". Extremes take the same filters as the insights and need a currency, a limit of 1 to 50 (default 10), and break ties by employee id. | The requirements list an overall view. Ranking across currencies is meaningless. |
 | 40 | The dashboard is the **home page** and keeps its state in the URL. The ranking currency is the one chosen, else the currency filter, else the first group's currency, and it is not asked for while the groups reload. Figures are not drawn until the currency list is loaded. | Back from an employee returns to the same view. A ranking in the previous currency, and a flash of raw amounts, were found in the first real run. |
-| 41 | `docker compose up` runs four containers: PostgreSQL, the API, the web server (nginx, unprivileged, serving the Angular build and proxying `/api`) and a one-shot seed. The seed asks the API for the employee count and loads only when it is 0. | One command runs everything, and a second `up` does not reject 10,000 duplicate rows (75.9 s, see trade-offs). The count goes through the API, so it uses the app's own login and rules. |
 | 20 | The directory is a **read-side package** (`directory`) that joins `employee`, `salary_entry` and the reference tables in SQL on `JdbcTemplate`. Writes still go only through the owning service. Read models (the directory, then the insights) may join across tables and never write. This amends decision 12. | The directory must filter by the currency of the current salary and sort by salary over 10,000 rows, with the page cut in the database. Asking each feature row by row cannot do that, and a copy of the current salary on `employee` would go stale when a future-dated raise takes effect. |
 | 21 | The current salary is a **lateral join**: the latest `salary_entry` on or before `asOf`, per employee. | Measured on 10,014 employees against a window function: 7.2 ms against 6.1 ms (filter and salary sort) and 9.2 ms against 8.3 ms (default view), which is noise at this size. The lateral form costs one index probe per employee and reads like the rule. |
 | 22 | Directory search is a case-insensitive **contains** on name or email, with `%`, `_` and `\` escaped. Blank means no search, and over 100 characters is a `400`. There is no index. | Measured at about 5.5 ms for any search on 10,014 rows. The escaping is for correctness: underscores are common in emails, and a typed `%` would match every row. |
@@ -277,7 +276,7 @@ Each slice delivers a working increment: the API, then its Angular screen, then 
 | 6 | Edit employee, terminate, delete (both need `version`). The loader and the seed carry leavers. Decisions 24 to 29. | Edit form with a termination date, delete with confirmation |
 | 7 | Edit and delete a salary entry, change log (migration 011), and the change-log write on adding an entry. Decisions 30 to 33. | Edit and Delete in the history table, a change history list |
 | 8 | Insights and extremes (`readmodel` shared with the directory). Decisions 34 to 40. | Dashboard on the home page: dimension, filters, statistics per currency, highest and lowest paid |
-| 9 | Wrap-up: the whole app in `docker compose`, README. Decision 41. | None |
+| 9 | Wrap-up: README and the insight timings. | None |
 
 The skill for the repeated backend pattern (endpoint plus database change) is written after slice 2, when a read and a write have both been built. A matching frontend skill follows once a few screens share a pattern.
 
@@ -357,7 +356,7 @@ One loader serves two purposes: migrating ACME's existing spreadsheet, and loadi
 
 **Current decision:** run locally for now and record the demo video from the local run. Hosted deployment is deferred.
 
-- `docker compose up --build` starts PostgreSQL, the Spring Boot API, `web` (nginx serving the Angular build and proxying `/api` to the API) and a one-shot `seed` that loads the 10,000 employees only into an empty database (decision 41).
+- Today `docker compose up` starts PostgreSQL only. The API and `web` containers (nginx serving the Angular build and proxying `/api` to the API) and the seed on first start are planned and not built. Run the API and the dev server by hand, as the README describes.
 - For development, run the API and `ng serve` with a proxy to `/api`.
 - The shared login credentials come from environment variables.
 - The README lists the run, test and seed commands.
