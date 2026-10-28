@@ -83,8 +83,8 @@
   } @else if (insights(); as current) {
     @if (current.groups.length === 0) {
       <p class="empty" data-test="no-groups">No employees match.</p>
-    } @else {
-      <app-insights-table [groups]="current.groups" [currencies]="lists()?.currencies" />
+    } @else if (lists(); as available) {
+      <app-insights-table [groups]="current.groups" [currencies]="available.currencies" />
     }
   }
   @if (insightsState() === 'loading') {
@@ -119,11 +119,11 @@
   } @else if (extremes(); as ranked) {
     @if (ranked.employees.length === 0) {
       <p class="empty" data-test="no-employees">No employees are paid in {{ ranked.currency }}.</p>
-    } @else {
+    } @else if (lists(); as available) {
       <app-extremes-list
         [employees]="ranked.employees"
         [currency]="ranked.currency"
-        [currencies]="lists()?.currencies"
+        [currencies]="available.currencies"
       />
     }
   }

@@ -15,7 +15,7 @@ import { formatMoney } from '../../../shared/money/format-money';
 export class ExtremesList {
   readonly employees = input.required<ExtremeEmployee[]>();
   readonly currency = input.required<string>();
-  readonly currencies = input<Currency[]>();
+  readonly currencies = input.required<Currency[]>();
 
   protected readonly columns = ['rank', 'fullName', 'department', 'jobTitle', 'country', 'salary'];
 

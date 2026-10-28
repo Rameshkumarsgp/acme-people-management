@@ -209,3 +209,59 @@ A plain contains-search on name and email took about 5.5 ms whether it matched 4
 - **The initial salary and the CSV load log nothing,** because an initial load is not a change. The log starts with the first edit.
 
 **Related.** [design.md](design.md), decisions 30 to 33.
+
+## Insights are one generic query, computed in the database
+
+**Decision.** `GET /api/insights` and `/extremes` are a read model (`insights`) like the directory. One statement serves every dimension: each dimension owns fixed SQL for its group key, label and order, and every request value is a bound parameter. The statistics come from PostgreSQL (`count`, `sum`, `min`, `max`, `avg`, `percentile_cont`), never from Java. A group is a slice value and a currency, so currencies are never mixed. The current-salary join and the "active" rule are shared with the directory in a `readmodel` package.
+
+**Why.** The questions HR asks are group-bys over 10,000 current salaries. One query that takes its dimension from a closed list is less code than six, and it cannot be given SQL by a client. Computing in the database keeps the rounding rules in one place.
+
+**What it costs.**
+
+- **The median is exact only up to 2^52 minor units (about 4.5 quadrillion).** `percentile_cont` works in double precision. Measured on PostgreSQL 17, the median of 9007199254740990 and 9007199254740991 comes back as 9007199254740990, where exact half-up rounding gives 9007199254740991. A test pins this. No realistic salary is near that size, so an exact median by row position was not built.
+- **The total is a string in the API.** A sum of many amounts can pass 2^53, which a browser cannot hold exactly. The page formats it from its digits as text. The other measures stay within one amount's cap (2^53 - 1) and are numbers.
+- **Today's figures only.** Insights use each person's current salary as of today. A salary as of a past date, and a trend over time, need a different query and are out of scope.
+- **Tenure and the 240 title-by-country groups are many rows.** Tenure by band and currency is 36 rows on the seed, and job title in country is 240. There are no charts, so the table is long. A chart is a UI feature for later.
+- **The ranking waits for the groups when no currency is chosen.** Its default currency is the first group's, so it is asked for after the groups answer. One more round trip on first paint, in exchange for never ranking in a stale currency.
+
+**Measured.** Through the real endpoints behind nginx in `docker compose`, including the login check, JSON and HTTP, on the owner's MacBook Pro with PostgreSQL 17 in Docker, on the 10,000-employee seed (curl total time, 9 runs after a warm-up):
+
+| Request | Min | Median | Max |
+|---|---|---|---|
+| Overall | 14.9 ms | 15.7 ms | 17.1 ms |
+| By country (10 groups) | 14.5 ms | 16.0 ms | 24.3 ms |
+| By department | 15.5 ms | 16.1 ms | 16.9 ms |
+| By job title | 16.1 ms | 17.2 ms | 17.6 ms |
+| By job title in country (240 groups) | 19.4 ms | 19.8 ms | 28.5 ms |
+| By tenure | 23.8 ms | 24.3 ms | 33.0 ms |
+| By country, all statuses | 15.7 ms | 16.5 ms | 18.1 ms |
+| By job title, country IN, currency INR | 8.8 ms | 9.3 ms | 10.8 ms |
+| Highest 10 in INR | 13.0 ms | 14.5 ms | 20.1 ms |
+| Lowest 50 in USD | 12.8 ms | 13.6 ms | 15.0 ms |
+
+Tenure is the slowest because its band is computed from two dates for every row. At 24 ms it needs no index, and none was added. The by-country group for Australia (436 people) was checked against a separate SQL query: headcount, total, min, median, mean and max were identical.
+
+**Alternatives rejected.**
+
+| Option | Why not |
+|---|---|
+| A query per view | Six queries to keep in step. The generic one is shorter and safer. |
+| Statistics in Java | Moves rows to the app to compute what the database does, and the rounding would live in two places. |
+| An exact median by row position | Exact above 2^52, but more SQL for a size that cannot occur. |
+| Convert currencies to one | Needs rates with a documented date. Out of scope, per the requirements. |
+
+**Related.** [design.md](design.md), decisions 34 to 40.
+
+## `docker compose up` runs everything, and the seed runs only on an empty database
+
+**Decision.** Four containers: PostgreSQL, the API, `web` (nginx, unprivileged, serves the Angular build and proxies `/api`, so the browser sees one origin and needs no CORS) and a one-shot `seed`. The seed script asks the API for the employee count with the app's own login and loads the 10,000 employees only when it is 0, so running `up` again changes nothing.
+
+**Why.** A reviewer should run one command and see data. Without the check, a second `up` would try to load 10,000 duplicate emails and reject every row, which took 75.9 s when measured with the loader.
+
+**What it costs.**
+
+- **The first start is slower than later ones.** It builds two images (the API with Gradle, the web app with npm), and the seed runs after the API is healthy. I did not time the build. In one run the load itself took 9.3 s (10,000 loaded, 0 rejected). The earlier 33 s was measured with the loader on the host, so the two are not the same setup, and the difference was not investigated.
+- **The login lockout counts per connection address.** Behind nginx every browser has the proxy's address, so five failed attempts lock everyone for a minute. The app does not trust forwarded-address headers, because a client can forge them. This is acceptable for one shared HR login and wrong for many users.
+- **Images are tagged by major version, not pinned by digest,** and the build downloads dependencies, so it needs the network.
+- **`/actuator` is not proxied.** The health check runs inside the API container.
+

@@ -78,13 +78,14 @@ export class Home {
     { equal: sameRequest },
   );
 
+  /** The first group's currency, but only for groups that match the filters now, never the previous ones. */
+  private readonly firstGroupCurrency = computed(() =>
+    this.insightsState() === 'loaded' ? this.insights()?.groups[0]?.currency : undefined,
+  );
+
   /** The currency to rank in: the one chosen, else the currency filter, else the first group's. */
   protected readonly rankCurrency = computed(
-    () =>
-      this.query().rankCurrency ||
-      this.query().currency ||
-      this.insights()?.groups[0]?.currency ||
-      '',
+    () => this.query().rankCurrency || this.query().currency || this.firstGroupCurrency() || '',
   );
 
   /** What the ranking depends on. A change of the dimension alone is the same ranking, so it does not reload it. */

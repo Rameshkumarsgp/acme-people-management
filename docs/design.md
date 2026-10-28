@@ -132,6 +132,14 @@ Settled while designing the data model and API. Each was debated against alterna
 | 31 | The change row is written **in the same transaction** as the salary change, by the salary service, which is the only writer of salary rows. Adding an entry logs `ADDED`. Creating an employee and the CSV load log nothing, because an initial load is not a change. | A change and its row succeed or fail together. A refused change leaves no row. |
 | 32 | An edit that changes nothing writes **no change row**, and an omitted currency keeps the entry's own. | A no-op logged as a change is noise, and an edit has no "entry before the date" to default from. |
 | 33 | `salary_entry_change.entry_id` is not a foreign key, so deleting an entry keeps its change rows, and the row's shape is checked in the database: `ADDED` has only new values, `DELETED` only old ones, `EDITED` both. The employee page shows the log newest first, with times in UTC. | As in the data model. What a constraint can express goes in the database. |
+| 34 | `insights` is a **read model** like the directory: native SQL on `JdbcTemplate`, no writes, no other feature's classes. The current-salary join, the "active" condition, the status filter and the shared filters (country, department, job title, currency, status) live once in a `readmodel` package that both read models use. | Each decision lives in one place. A third copy of "active" is how two screens come to disagree. |
+| 35 | **One generic query serves every dimension.** Each dimension owns fixed SQL for its group key, label and order, and every request value is a bound parameter. A hostile value is tested to stay out of the SQL. | One mechanism is less code than six queries, and the client never supplies SQL. |
+| 36 | The statistics are computed in the database. `total` is an exact `numeric` sum and is sent as a **decimal string**. `min` and `max` are exact numbers. `mean` is `round(avg(...))` and `median` is `round(percentile_cont(0.5) ...)`, both rounding half up to whole minor units. | A sum of many amounts can pass 2^53 and would lose digits in the browser. Rounding is stated, not left to the database default. |
+| 37 | `percentile_cont` works in double precision, so the **median is exact up to 2^52** and can be one minor unit low above that. A test pins the behavior at the cap. | Measured on PostgreSQL 17. No realistic salary is near that size, and an exact median by row position was rejected as a departure from the design for a case that cannot occur. |
+| 38 | Tenure is **completed years** from the hire date to the earlier of today and the termination date. The bands are under 1 year, 1 to under 3, 3 to under 5, 5 to under 10, and 10 or more. | As the requirements say. A hire date exactly one year ago is in the 1 to 3 band and one day later is under 1. |
+| 39 | An `OVERALL` dimension (everyone in one group per currency) is the sixth, for the requirements' "How many people do we pay, and what is the total payroll?". Extremes take the same filters as the insights and need a currency, a limit of 1 to 50 (default 10), and break ties by employee id. | The requirements list an overall view. Ranking across currencies is meaningless. |
+| 40 | The dashboard is the **home page** and keeps its state in the URL. The ranking currency is the one chosen, else the currency filter, else the first group's currency, and it is not asked for while the groups reload. Figures are not drawn until the currency list is loaded. | Back from an employee returns to the same view. A ranking in the previous currency, and a flash of raw amounts, were found in the first real run. |
+| 41 | `docker compose up` runs four containers: PostgreSQL, the API, the web server (nginx, unprivileged, serving the Angular build and proxying `/api`) and a one-shot seed. The seed asks the API for the employee count and loads only when it is 0. | One command runs everything, and a second `up` does not reject 10,000 duplicate rows (75.9 s, see trade-offs). The count goes through the API, so it uses the app's own login and rules. |
 | 20 | The directory is a **read-side package** (`directory`) that joins `employee`, `salary_entry` and the reference tables in SQL on `JdbcTemplate`. Writes still go only through the owning service. Read models (the directory, then the insights) may join across tables and never write. This amends decision 12. | The directory must filter by the currency of the current salary and sort by salary over 10,000 rows, with the page cut in the database. Asking each feature row by row cannot do that, and a copy of the current salary on `employee` would go stale when a future-dated raise takes effect. |
 | 21 | The current salary is a **lateral join**: the latest `salary_entry` on or before `asOf`, per employee. | Measured on 10,014 employees against a window function: 7.2 ms against 6.1 ms (filter and salary sort) and 9.2 ms against 8.3 ms (default view), which is noise at this size. The lateral form costs one index probe per employee and reads like the rule. |
 | 22 | Directory search is a case-insensitive **contains** on name or email, with `%`, `_` and `\` escaped. Blank means no search, and over 100 characters is a `400`. There is no index. | Measured at about 5.5 ms for any search on 10,014 rows. The escaping is for correctness: underscores are common in emails, and a typed `%` would match every row. |
@@ -268,7 +276,8 @@ Each slice delivers a working increment: the API, then its Angular screen, then 
 | 5 | Directory: search, filter, sort, paginate. A read-side `directory` package (decisions 20 to 23). | Directory table at `/employees` with filters, status filter and currency-safe salary sort, its state in the URL |
 | 6 | Edit employee, terminate, delete (both need `version`). The loader and the seed carry leavers. Decisions 24 to 29. | Edit form with a termination date, delete with confirmation |
 | 7 | Edit and delete a salary entry, change log (migration 011), and the change-log write on adding an entry. Decisions 30 to 33. | Edit and Delete in the history table, a change history list |
-| 8 | Insights and extremes | Dashboard: dimension, filters, statistics per currency, highest and lowest paid |
+| 8 | Insights and extremes (`readmodel` shared with the directory). Decisions 34 to 40. | Dashboard on the home page: dimension, filters, statistics per currency, highest and lowest paid |
+| 9 | Wrap-up: the whole app in `docker compose`, README. Decision 41. | None |
 
 The skill for the repeated backend pattern (endpoint plus database change) is written after slice 2, when a read and a write have both been built. A matching frontend skill follows once a few screens share a pattern.
 
@@ -301,7 +310,7 @@ The `currency` filter means the currency of the employee's **current salary**. *
 
 Defaults are `status=ACTIVE`, `sort=fullName,asc`, `page=0` and `size=20` (1 to 100). Every sort appends `id` ascending, so pages never overlap. A sort field maps to a fixed SQL expression and every filter value is a bound parameter, so no client text reaches the SQL. A rule-breaking request is a `400` with `errors: [{ field, message }]`. An unknown `departmentId` or `countryCode` is not an error: it matches nothing and gives an empty page. Each row carries the department, job title and country names, the status, the hire date and the current salary. The spec is [slice 5](superpowers/specs/2026-10-24-slice-5-directory-design.md).
 
-### Insights (sketch, finalized in its own slice)
+### Insights (sketch, built in slice 8 as decisions 34 to 40)
 
 **Scope.** Insights cover **active employees by default**, using each employee's current salary as of today. The `status` filter can widen this to former employees or all. Historical snapshots, such as "who was employed on a past date", are out of scope. `asOf` is internal and is not a request parameter.
 
@@ -344,18 +353,13 @@ One loader serves two purposes: migrating ACME's existing spreadsheet, and loadi
 - `.xlsx` is not parsed. HR saves the sheet as CSV.
 - Throughput is measured: 10,000 rows load in about 33 seconds, one transaction per row, so writes are not batched. The numbers are in [tradeoffs.md](tradeoffs.md).
 
-## Still to write
-
-- Insights approach in detail (the generic slice-by-dimension query)
-- Local deployment plan (see below)
-
 ## Deployment
 
 **Current decision:** run locally for now and record the demo video from the local run. Hosted deployment is deferred.
 
-- `docker compose up` starts three containers: PostgreSQL, the Spring Boot API, and `web` (nginx serving the Angular build and proxying `/api` to the API). The 10,000-employee seed is applied on first start.
+- `docker compose up --build` starts PostgreSQL, the Spring Boot API, `web` (nginx serving the Angular build and proxying `/api` to the API) and a one-shot `seed` that loads the 10,000 employees only into an empty database (decision 41).
 - For development, run the API and `ng serve` with a proxy to `/api`.
 - The shared login credentials come from environment variables.
-- The README will list run, test, and seed commands.
+- The README lists the run, test and seed commands.
 
 **Open risk:** the brief lists deployed software as a requirement. If it must be hosted, the same Docker images can go to a free host (Render with Neon Postgres was the leading option) as a final step. 

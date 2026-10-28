@@ -386,3 +386,64 @@ Making these without my check was my choice for speed. The cost is that I have n
 ### Lesson
 
 Doing the work without asking makes it fast, and it moves the review to afterwards. The rules and the proofs stayed the same, and the decisions are written down with their reasons, so the review is possible. It still has to happen.
+
+## Session 8: slices 7 and 8, and the wrap-up (26 to 27 Oct 2026)
+
+### What we did
+
+Slice 7 (edit and delete a salary entry, and the change log), slice 8 (the insights and the dashboard) and the wrap-up (the whole app in `docker compose`, the README, the docs). I kept the instruction not to ask permission, so the AI made the design decisions and wrote each with its reason in the specs and in `docs/design.md`. I ran the commits from scripts it wrote.
+
+### Prompts (summarized)
+
+| Prompt | Outcome |
+|---|---|
+| "fine move on to the unfinished slices and wrap it" | Slice 7 finished, slice 8 backend built test first, with every test proven by breaking the code |
+| "Edit, hire date 2024-05-01, Save worked, check that usecase and verify tests" | It was a valid case. Two boundary tests were added instead of a code change |
+| "build the FE as well we will test live" | The dashboard, with 25 specs for the home page alone |
+| (the error screenshot) "Could not load the insights" | My API was an old process from 24 Oct, started before the code existed. A restart fixed it |
+| "give me script and commit messages" | One script with seven commits, each taking only its own paths |
+| "done, continue with the wrap-up" | Dockerfiles, nginx, compose with a seed that runs only on an empty database, the README and these docs |
+
+### What the AI got wrong or I had to correct
+
+| What happened | What I did and why |
+|---|---|
+| The new Home template used `matNativeControl` without importing the input module, so every Home spec failed with "mat-form-field must contain a MatFormFieldControl". | The first spec run showed it. The import was added. A build alone would not have caught it. |
+| The groups table reloaded when only the ranking changed, and the ranking reloaded when only the dimension changed, because both read the whole query. | A spec asserted that no request is made, and it failed. Each load now depends on its own inputs. |
+| The first real browser run showed raw amounts such as `5691700000 AUD` for a moment, because the table drew before the currency list loaded. | The table now waits for the currencies. The first test I wrote for this passed even with the fix removed, because it checked before the answer arrived. I rewrote it to wait, and then it failed as it should. |
+| The second real run showed a ranking in the previous currency while the groups reloaded: filtering to India asked for the highest paid in AUD, found nobody and said so. | The ranking currency now comes from the groups only once they match the filters. A test and a broken-code proof cover it. |
+| My total fixture was 18014398509481982. A browser can hold that exactly, because it is even and below 2^54, so converting it to a number did not change it and the mutation survived. | I used an odd value, 18014398509481983, which a number cannot hold, and the mutation then failed. |
+| `sed -i` without an empty argument failed on macOS and stopped a chain of commands, so one rename did not happen. | I read the error, used `sed -i ''` and reran the step. |
+| I started the API with `bootRun` without the datasource variables and got "Failed to determine a suitable driver class". | I stopped, did not guess at secrets, and said what I did not know. I then ran the stack in a separate compose project on other ports, so your database and ports were untouched. |
+| One mutation replaced text that was not in the file and "survived" without changing anything. Another was a compile error. | Both showed as survivors with no failing test. I redid them with real mutations. |
+
+### Decisions the AI made on its own, for me to review
+
+- **An `OVERALL` dimension** (everyone in one group per currency) is the default and the sixth, because the requirements list "How many people do we pay, and what is the total payroll?". The slice 8 spec listed five.
+- **Extremes take the same filters as the insights,** because the requirements ask for the highest and lowest paid "within any of the above".
+- **The total is a decimal string** and every other figure is a number. **The median is exact up to 2^52** and can be one unit low above it. A test pins this and it is recorded in the trade-offs.
+- **The dashboard is the home page,** so the old Home component became the dashboard, with the greeting and the links at the top.
+- **The seed runs on `docker compose up` only when the database is empty,** decided by asking the API for the employee count.
+- **nginx runs unprivileged** and `/api` is the only path it forwards.
+- Read decisions 34 to 41 in `docs/design.md` before I rely on them.
+
+### What was verified, not assumed
+
+| Question | Finding |
+|---|---|
+| Do the statistics match an independent query? | For Australia, 436 people: headcount, total, min, median, mean and max were identical to a separate SQL query on the same database. |
+| Does the whole app start from one command? | Yes, in a separate compose project: PostgreSQL, API, web and seed. The seed loaded 10,000 rows with 0 rejected in 9.3 s, and the app was served through nginx. |
+| Does a second `up` load the seed again? | No. The log says "The database already has 10000 employees. Seed skipped." and it exited 0. |
+| Is the API protected behind nginx? | Yes: `/api/insights` without a login answered 401. `/actuator` is not proxied, so nginx answers it with the app's page. |
+| Does the dashboard work in a real browser? | Yes. Nine steps on the compose stack: formatted figures from the first paint, the ranking, tenure bands, state in the address, job title in country (240 groups), a country filter, the lowest paid sorted ascending, opening a person, and Back returning to the same view. No console errors. |
+| How fast is each insight? | 9 to 33 ms on the 10,000-employee seed. The table is in the trade-offs. |
+
+### What I would do differently
+
+- Write the frontend test that fails first when the fix is removed, before the fix. The weak test only showed itself when I broke the code.
+- Check what a running process is before testing against it. The "Could not load" screen was an old process, and the process start time showed it in one command.
+- Run the real browser pass earlier. Two real bugs (the raw amounts and the stale currency) appeared only there.
+
+### Lesson
+
+The unit specs proved each rule. They did not show the moment between two answers, where a page can show the wrong thing for a second. Only a real browser run on the real stack did. I should plan one real run per screen, not one per slice.

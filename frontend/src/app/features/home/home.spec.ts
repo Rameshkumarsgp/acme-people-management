@@ -228,6 +228,19 @@ describe('Home', () => {
     });
   });
 
+  it('shows no figures until the currencies are known, so no raw amount flashes', async () => {
+    await open('/');
+    (await nextInsights()).flush(COUNTRIES);
+    await until(() => expect(page.textContent).not.toContain('Loading'));
+    expect(page.querySelector('app-insights-table')).toBeNull();
+    expect(page.textContent).not.toContain('300000050');
+
+    answerLists();
+    await until(() => expect(page.textContent).toContain('3,000,000.50 INR'));
+    (await nextExtremes()).flush(HIGHEST);
+    await until(() => expect(page.querySelector('app-extremes-list')).not.toBeNull());
+  });
+
   it('offers the dimensions and the reference lists in the controls', async () => {
     await openAndAnswer();
 
@@ -286,18 +299,34 @@ describe('Home', () => {
     http.expectNone((candidate) => candidate.url === '/api/insights/extremes');
   });
 
-  it('puts a changed filter in the address and asks for both the groups and the ranking again', async () => {
+  it('puts a changed filter in the address, asks for the groups and then ranks in their currency', async () => {
     await openAndAnswer();
 
     choose('select[data-test="department"]', '3');
 
     await vi.waitFor(() => expect(queryParams()['departmentId']).toBe('3'));
     const request = await nextInsights();
-    const ranking = await nextExtremes();
     expect(request.request.params.get('departmentId')).toBe('3');
+    request.flush({ dimension: 'COUNTRY', groups: [COUNTRIES.groups[1]] });
+    const ranking = await nextExtremes();
     expect(ranking.request.params.get('departmentId')).toBe('3');
-    request.flush(COUNTRIES);
+    expect(ranking.request.params.get('currency')).toBe('USD');
     ranking.flush(HIGHEST);
+  });
+
+  it('does not rank in the previous currency while the groups are reloading', async () => {
+    await openAndAnswer();
+
+    choose('select[data-test="country"]', 'US');
+
+    await vi.waitFor(() => expect(queryParams()['countryCode']).toBe('US'));
+    const request = await nextInsights();
+    harness.detectChanges();
+    http.expectNone((candidate) => candidate.url === '/api/insights/extremes');
+    request.flush({ dimension: 'COUNTRY', groups: [COUNTRIES.groups[1]] });
+    const ranking = await nextExtremes();
+    expect(ranking.request.params.get('currency')).toBe('USD');
+    ranking.flush({ order: 'HIGHEST', currency: 'USD', employees: [] });
   });
 
   it('ranks in the currency filter and clears a chosen ranking currency when the filter changes', async () => {

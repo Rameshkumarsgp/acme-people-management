@@ -13,7 +13,7 @@ import { formatMoney } from '../../../shared/money/format-money';
 })
 export class InsightsTable {
   readonly groups = input.required<InsightGroup[]>();
-  readonly currencies = input<Currency[]>();
+  readonly currencies = input.required<Currency[]>();
 
   protected readonly columns = [
     'label',
