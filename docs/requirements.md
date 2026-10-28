@@ -46,17 +46,31 @@ Every view can be filtered by country, department, and job title. Measures are h
 - **Limits of the CSV load:** dates must be ISO and amounts plain numbers, so a sheet saved from Excel with local dates needs reformatting first. Loading the same file twice rejects every row.
 - **Terminating an employee who has a future-dated raise:** refused until HR deletes that entry, because no entry may be dated after the termination date.
 - **Maintaining departments and job titles in the app:** these are standardized reference data managed through migrations. HR cannot add a title without a code change.
+- **Bonuses and other pay components:** only annual base salary is held. Bonuses, allowances, equity and benefits are separate pay types with their own rules, and mixing them into one figure would make the statistics hard to read. They can be added as a pay-component table later.
+- **Employees without a salary (interns, unpaid):** every employee has a salary, so they are not modelled. If they were, they would count in the headcount and be left out of the salary statistics.
+- **Currency conversion:** salaries are shown per currency and never converted. Conversion needs documented exchange rates and a rate date.
+- **Several users and permissions:** one shared login protects the app. How to add user accounts, roles and a "who changed it" trail is under "How multiple users would be added" below.
 
-## Open questions and working assumptions
+## Decisions on the open questions
 
-Questions sent. Until they reply, we proceed with the defaults below.
+We asked Incubyte seven questions. They replied that these are product decisions for us to make, to document with our reasoning, and that either choice is acceptable on salary history, former employees and currency. A single HR manager is sufficient, and the answers below stand as our decisions. The last column is what changes if a decision is reversed. The reasons for decisions 2 to 5 are in the table.
 
-| # | Question asked | Working assumption | If the answer differs |
+| # | Question asked | Decision and reason | If it changes later |
 |---|---|---|---|
-| 1 | Annual base salary only, or bonuses and other pay too? | Annual base salary only, stored as integer minor units | Add a pay-component table (type, amount). Insights gain a "pay type" filter. |
-| 2 | Should previous salary records be kept when a salary is updated? | Yes. Salary history is in the MVP as an append-only dated list | If no, drop the history table and keep a single current salary, which simplifies the model |
-| 3 | Do we handle employees without a salary (interns, unpaid)? | No. Every employee has a salary | Allow a nullable salary. Headcount counts everyone, and salary statistics exclude people without one |
-| 4 | Include former employees along with current ones? | Yes. A leaver gets a termination date and stays in the data. Insights and the directory default to active employees, with a status filter | If former employees are not wanted, drop the termination date and the status filter |
-| 5 | Show salaries per currency, or convert to a common currency? | Per currency, never mixed | Add an FX rate table with a documented rate date and a "converted view", kept separate from native figures |
-| 6 | Single HR Manager, or multiple users with roles? | Single persona with one shared login for protection | If multiple users, add user accounts and roles, which also enables a "who changed it" trail |
-| 7 | Are job titles and departments a standardized list, or free text? | Standardized lists, stored as reference data. No levels or grades | If free text, normalize on entry (trim, case-fold) and warn that title comparisons may be unreliable. If a level or grade structure exists, add a level field so "same role" comparisons can be made per level |
+| 1 | Annual base salary only, or bonuses and other pay too? | Annual base salary only, stored as integer minor units. Incubyte agreed. Bonuses and other pay are listed under "Deliberately left out". | Add a pay-component table (type, amount). Insights gain a "pay type" filter. |
+| 2 | Should previous salary records be kept when a salary is updated? | Yes. Salary history is a dated list of entries. It lets HR correct a typo, enter a raise in advance, and see what changed and when, and a single current figure could do none of that. | If no, drop the history table and keep a single current salary, which simplifies the model |
+| 3 | Do we handle employees without a salary (interns, unpaid)? | No. Every employee has a salary, so every employee is counted in the headcount and in every statistic. An unpaid intern is not modelled, and HR would record them with a salary only if they are paid. | Allow a nullable salary. Headcount would count everyone, and the salary statistics (total, min, median, mean, max) would exclude people without one, with the number excluded shown beside them. |
+| 4 | Include former employees along with current ones? | Yes. A leaver gets a termination date and stays in the data. **Insights and the directory cover active employees by default**, and a status filter widens them to former employees or to all. The screen shows which is selected. | If former employees are not wanted, drop the termination date and the status filter |
+| 5 | Show salaries per currency, or convert to a common currency? | Per currency, never mixed. Converting needs exchange rates with a rate date, and a total in the wrong rate is worse than no total. | Add an FX rate table with a documented rate date and a "converted view", kept separate from native figures |
+| 6 | Single HR Manager, or multiple users with roles? | Single persona with one shared login for protection. Incubyte agreed that a single HR manager is sufficient. | See "How multiple users would be added" below. |
+| 7 | Are job titles and departments a standardized list, or free text? | Standardized lists, stored as reference data. No levels or grades. Incubyte did not reply to this one, so it is our decision. | If free text, normalize on entry (trim, case-fold) and warn that title comparisons may be unreliable. If a level or grade structure exists, add a level field so "same role" comparisons can be made per level |
+
+### How multiple users would be added
+
+The shared login is one HTTP Basic credential from the environment. To support several users:
+
+1. Add a `user` table with a hashed password and a role (for example HR manager, read-only viewer), and sign in against it.
+2. Replace the shared credential check with that lookup. The security filter chain and the 401 behavior stay as they are.
+3. Add `changed_by` to `salary_entry_change` and record the user on every add, edit and delete. Today the change log records what and when, never who.
+4. Restrict writes to the HR role and let the viewer role read the insights and the directory. The endpoints already separate reads from writes.
+5. Replace the in-memory login with a token or a session, so a page reload does not sign the user out.

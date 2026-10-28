@@ -34,9 +34,9 @@ A take-home engineering assessment for Incubyte (a hiring process). Evaluators j
 - Single HR persona, one shared login to protect the app (credentials from environment config, never hardcoded).
 - Out of scope: performance reviews, promotions, recruitment, leave, gender/diversity pay equity, payroll, payslips, tax, bank transfers.
 
-## Working assumptions (questions sent to Incubyte, awaiting reply)
+## Decisions on the open questions (Incubyte replied: all are ours to make, and to document)
 
-Annual base salary only; salary history kept; every employee has a salary; leavers kept with a termination date; per-currency reporting; single HR user; standardized titles and departments with no levels or grades. If a reply arrives, I will tell you and we update `docs/requirements.md` and the design.
+Annual base salary only; salary history kept; every employee has a salary; leavers kept with a termination date; per-currency reporting; single HR user; standardized titles and departments with no levels or grades. Incubyte replied that these are our product decisions, that either choice is acceptable on history, former employees and currency, and that a single HR manager is enough. The reasons, what is deliberately left out and how multiple users would be added are in `docs/requirements.md`.
 
 ## Repository layout
 
