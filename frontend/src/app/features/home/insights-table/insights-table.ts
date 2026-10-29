@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import { Component, input } from '@angular/core';
 import { MatTableModule } from '@angular/material/table';
 import { InsightGroup } from '../../../core/insights/insights-api';
@@ -7,7 +8,7 @@ import { formatMoney } from '../../../shared/money/format-money';
 /** The statistics of each group. A group is one slice value in one currency, so figures are never mixed. */
 @Component({
   selector: 'app-insights-table',
-  imports: [MatTableModule],
+  imports: [DecimalPipe, MatTableModule],
   templateUrl: './insights-table.html',
   styleUrl: './insights-table.scss',
 })
