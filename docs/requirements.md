@@ -1,4 +1,4 @@
-# ACME People Management: Requirements [WIP]
+# ACME People Management: Requirements
 
 *See how ACME pays people.*
 

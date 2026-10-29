@@ -1,4 +1,4 @@
-# ACME People Management: Design [WIP]
+# ACME People Management: Design
 
 Status: Draft. Architecture decisions, the data model and the API are written. Remaining sections are listed at the end.
 
